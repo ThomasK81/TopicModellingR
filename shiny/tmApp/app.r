@@ -272,6 +272,6 @@ ui <- fluidPage(
           a("Click Here to Download the Search Results",     href="/www/catalogue/catalogue.csv"),
           a("Click Here to Download the Search Results",     href="/www/catalogue/catalogue.csv")
         ))
-      )))))
+      ))))
 
 shinyApp(ui = ui, server = server)
