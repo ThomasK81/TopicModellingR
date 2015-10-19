@@ -1,0 +1,48 @@
+# produce dictionary for stemming:
+t1 <- Sys.time()
+
+latinwords <- unique(unlist(strsplit(research_corpus, "\\W+", perl=TRUE)))
+
+#function for stemming
+library(XML)
+library(RCurl)
+
+stemmingfunction <- function(x){
+URL <- paste("http://www.perseus.tufts.edu/hopper/xmlmorph?lang=lat&lookup=", x, sep = "")
+URLcontent <- getURLContent(URL)
+doc <- xmlTreeParse(URLcontent, getDTD = F)
+r <- xmlRoot(doc)
+
+lemmafunction <- function(y){
+out <- tryCatch(
+{message("This is the 'try' part")
+replacement <- xmlValue(r[[1]][["lemma"]])},
+error=function(cond) {
+            message(paste("URL does not seem to exist:", y))
+            message("Here's the original error message:")
+            message(cond)
+            # Choose a return value in case of error
+		return(y)
+        },
+	  warning=function(cond) {
+	              message(paste("URL caused a warning:", x))
+	              message("Here's the original warning message:")
+	              message(cond)
+	              # Choose a return value in case of warning
+			  return(y)
+	          },
+	          finally={message(paste("Processed word:", y))})
+		    return(replacement)
+		    }
+
+lemma <- lemmafunction(x)
+research_corpus <- gsub(x, lemma, research_corpus) # normalise to lemma
+return(research_corpus)}
+
+#stemming
+library(plyr)
+test2 <- sapply(latinwords, stemmingfunction)
+research_corpus <- test2
+
+t2 <- Sys.time()
+t2 - t1

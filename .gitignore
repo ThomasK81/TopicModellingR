@@ -1,0 +1,7 @@
+# Common files
+*.bak
+*~
+
+# Windows and Mac OS X
+Thumbs.db
+.DS_Store
