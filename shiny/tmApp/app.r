@@ -8,7 +8,7 @@ library(lda)
 
 per_page <- 100
 
-server <- function(input, output) function(input, output) {
+server <-function(input, output) {
   
   tm_visualisation <- reactive({
     if(input$collection == 1) {
