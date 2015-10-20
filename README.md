@@ -1,6 +1,6 @@
 # TopicModellingR
 
-## Try-out the topic-modeller
+## Try-out the DNZ topic-modeller (based on the Digital NZ API)
 
 1. Install [R] (https://www.r-project.org) and optionally [RStudio] (https://www.rstudio.com) 
 2. In RStudio/R install shiny: `install.packages("shiny")`
