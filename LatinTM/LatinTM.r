@@ -18,6 +18,22 @@ stopwords_greek <- c("μή", "ἑαυτοῦ", "ἄν", "ἀλλ’", "ἀλλά
 
 stop_words <- stopwords_latin
 
+# See which authors are in CTS repository
+
+capabilities_URL <- "http://www.perseus.tufts.edu/hopper/CTS?request=GetCapabilities"
+URL <- capabilities_URL
+
+
+URLcontent <- getURLContent(URL)
+XMLpassage <-function(xdata){
+  dumFun <- function(x){
+    xname <- xmlName(x)
+    xattrs <- xmlAttrs(x)
+    c(sapply(xmlChildren(x), xmlValue), name = xname, xattrs)}
+  dum <- xmlParse(xdata)
+  as.data.frame(t(xpathSApply(dum, "//*/work", dumFun)), stringsAsFactors = FALSE)}
+output_list <- XMLpassage(URLcontent)
+
 # Import corpus from CTS repository
 
 baseURL <- "http://www.perseus.tufts.edu/hopper/CTS?request=GetPassage&urn="
@@ -45,7 +61,7 @@ t1 <- Sys.time()
 
 output_list <- list()
 
-for (i in reffs[1:100]) {
+for (i in reffs[1:2]) {
   message("Retrieve section ", i)
   URL <- paste(baseURL, i, sep = "")
   message("Fetching ", URL)
@@ -104,10 +120,49 @@ corpus_words <- sort(corpus_words)
 
 #function for stemming
 
+parsing2 <- function(x){
+  URL <- paste("https://services.perseids.org/bsp/morphologyservice/analysis/word?word=", x, "&lang=lat&engine=morpheuslat", sep = "")
+  message("Accessing ", URL)
+  
+  XMLpassage <-function(xdata){
+    miner <- function(x){
+      xname <- xmlName(x)
+      xattrs <- xmlAttrs(x)
+      c(sapply(xmlChildren(x), xmlValue), name = xname, xattrs)}
+    result <- xmlParse(xdata)
+    temp.df <- as.data.frame(t(xpathSApply(result, "//*/hdwd", miner)), stringsAsFactors = FALSE)
+    as.vector(temp.df[['text']])}
+  
+  URLcontent <- tryCatch({
+    getURLContent(URL)}, 
+    error = function(err)
+    {message(x, " -query caused server error. Return original value.")
+     content <- "ServerError"
+     return(content)})
+  if (URLcontent == "ServerError") {lemma <- "ServerError"
+                                    return(lemma)}
+  
+  lemma <- if (is.null(XMLpassage(URLcontent)) == TRUE) {
+    lemma <- "NotFound2"
+    return(lemma)}
+  else {tryCatch({XMLpassage(URLcontent)},
+                 error = function(err) {
+                   message(x, " not found. Return original value.")
+                   lemma <- "NotFound1"
+                   return(lemma)})}
+  
+  lemma <- gsub("[0-9]", "", lemma)
+  lemma <- tolower(lemma)
+  lemma <- unique(lemma)
+  # lemma <- paste(lemma, sep="", collapse="_")
+  if (nchar(lemma) == 0) lemma <- x
+  message(x, " is ", lemma)
+  return(lemma)}
+
 parsing <- function(x){
   URL <- paste("http://www.perseus.tufts.edu/hopper/xmlmorph?lang=lat&lookup=", x, sep = "")
   message("Accessing ", URL)
-
+  
   XMLpassage <-function(xdata){
     miner <- function(x){
       xname <- xmlName(x)
@@ -116,24 +171,29 @@ parsing <- function(x){
     result <- xmlParse(xdata)
     temp.df <- as.data.frame(t(xpathSApply(result, "//*/lemma", miner)), stringsAsFactors = FALSE)
     as.vector(temp.df[['text']])}
-
+  
   URLcontent <- tryCatch({
     getURLContent(URL)}, 
     error = function(err)
-      {message(x, " -query caused server error. Return original value.")
-       lemma <- x
-       return(lemma)})
-
-  lemma <- tryCatch({XMLpassage(URLcontent)},
-                    error = function(err) {
-                      message(x, " not found. Return original value.")
-                      lemma <- x
-                      return(lemma)})
-
+    {message(x, " -query caused server error. Return original value.")
+     content <- "ServerError"
+     return(content)})
+  if (URLcontent == "ServerError") {lemma <- parsing2(x)
+                                    return(lemma)}
+  
+  lemma <- if (is.null(XMLpassage(URLcontent)) == TRUE) {
+    lemma <- parsing2(x)
+    return(lemma)}
+  else {tryCatch({XMLpassage(URLcontent)},
+                 error = function(err) {
+                   message(x, " not found. Return original value.")
+                   lemma <- "NotFound1"
+                   return(lemma)})}
+  
   lemma <- gsub("[0-9]", "", lemma)
   lemma <- tolower(lemma)
   lemma <- unique(lemma)
-  lemma <- paste(lemma, sep="", collapse="_")
+  # lemma <- paste(lemma, sep="", collapse="_")
   if (nchar(lemma) == 0) lemma <- x
   message(x, " is ", lemma)
   return(lemma)}
@@ -143,6 +203,15 @@ correcting <- function(x){
   # corrected <- mapvalues(object, from=names(stem_dictionary), to=tolower(stem_dictionary), warn_missing = FALSE)
   corrected <- mapvalues(object, from=tolower(original), to=tolower(new), warn_missing = FALSE)
   corrected <- paste(corrected, collapse=" ")
+  return(corrected)}
+
+correcting3 <- function(x){
+  corrected <- stem_dictionary[[x]]
+  return(corrected)}
+
+correcting2 <- function(x){
+  object <- unlist(x)
+  corrected <- apply(object, correcting3)
   return(corrected)}
 
 #stemming
@@ -158,8 +227,9 @@ stem_dictionary <- as.data.frame(stem_dictionary)
 original <- rownames(stem_dictionary)
 new <- as.character(stem_dictionary[,1])
 temp <- strsplit(research_corpus, " ")
-temp_correct <- lapply(temp, correcting) 
+temp_correct <- lapply(temp, correcting3)
 research_corpus <- unlist(temp_correct)
+doc.list <- strsplit(research_corpus, "[[:space:]]+")
 t2 <- Sys.time()
 correcting_time <- t2 - t1
 
@@ -224,7 +294,7 @@ json <- createJSON(phi = research_corpusAbstracts$phi,
                    R=40)
 			 
 #Visulise and start browser
-serVis(json, out.dir = 'Latin_vis', open.browser = FALSE)
+serVis(json, out.dir = 'Latin_vis', open.browser = TRUE)
 
 # get the tables
 
