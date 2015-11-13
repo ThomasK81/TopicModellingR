@@ -1,4 +1,5 @@
-setwd("~/Dropbox/ArabicTM")
+setwd("~/OneDrive/GithubProjects/TopicModellingR/ArabicTM")
+
 # libraries needed
 
 library(tm)
@@ -39,7 +40,7 @@ output_names <- as.character(base_corpus[["V1"]])
 
 ## reduce sample
 
-research_corpus <- research_corpus[1:5]
+research_corpus <- research_corpus
 
 # pre-processing goes here
 
@@ -273,16 +274,6 @@ colnames(theta.frame) <- paste("topic", as.character(1:K-1), sep="")
 colnames(theta.frame)[1] <- "identifier"
 rownames(theta.frame) <- output_names
 write.table(theta.frame, file = 'Arabic_tab/theta.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = TRUE, col.names = TRUE)
-
-## stemming
-t1 <- Sys.time()
-stem_dictionary <- sapply(corpus_words, parsing2)
-
-NumberOfForms <- max(unique(sapply(stem_dictionary, length)))
-number_lemmata <- sapply(stem_dictionary, length)
-
-t2 <- Sys.time()
-stemming_time <- t2 - t1
 
 ######################################################
 
