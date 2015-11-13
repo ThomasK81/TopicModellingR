@@ -38,10 +38,6 @@ base_corpus <- read.table("Shamela_0035100.csv", sep="\t", header=FALSE)
 research_corpus <- as.character(base_corpus[["V2"]])
 output_names <- as.character(base_corpus[["V1"]])
 
-## reduce sample
-
-research_corpus <- research_corpus
-
 # pre-processing goes here
 
 # tokenize on space and output as a list:
@@ -256,24 +252,13 @@ json <- createJSON(phi = research_corpusAbstracts$phi,
 #Visulise and start browser
 serVis(json, out.dir = 'Arabic_vis', open.browser = FALSE)
 
-# get the tables
+# save model
 
 dir.create("Arabic_tab")
 
 #names(head(sort(phi.frame[,1], decreasing = TRUE)))
+save(json, research_corpusAbstracts, documents, stem_dictionary, file="Arabic_tab/TM_morph.rda")
 
-# get topic-term distributions and export as csv
-phi.frame <- t(data.frame(phi))
-colnames(phi.frame) <- paste("topic", as.character(1:K), sep="")
-colnames(phi.frame)[1] <- "term"
-write.table(phi.frame, file = 'Arabic_tab/phi.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = TRUE, col.names = TRUE)
-
-# get document-topic distributions and export as csv
-theta.frame <- data.frame(theta)
-colnames(theta.frame) <- paste("topic", as.character(1:K-1), sep="")
-colnames(theta.frame)[1] <- "identifier"
-rownames(theta.frame) <- output_names
-write.table(theta.frame, file = 'Arabic_tab/theta.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = TRUE, col.names = TRUE)
 
 ######################################################
 
@@ -392,3 +377,10 @@ json <- createJSON(phi = translation_corpusAbstracts$phi,
 
 #Visulise and start browser
 serVis(json, out.dir = 'ArabicTranslated_vis', open.browser = FALSE)
+
+# save model
+
+#names(head(sort(phi.frame[,1], decreasing = TRUE)))
+save(json, research_corpusAbstracts, documents, meaning_dictionary, file="Arabic_tab/TM_translated.rda")
+
+
