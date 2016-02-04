@@ -1,4 +1,4 @@
-## setwd
+## setwd, modify according to your needs
 
 setwd("~/OneDrive/TopicModellingR/GreekTM")
 
@@ -36,6 +36,7 @@ searchterms <- ""
 stopwords_english <- stopwords("SMART")
 stopwords_latin <- c("ab", "ac", "ad", "adhic", "aliqui", "aliquis", "an", "ante", "apud", "at", "atque", "aut", "autem", "cum", "cur", "de", "deinde", "dum", "ego", "enim", "ergo", "es", "est", "et", "etiam", "etsi", "ex", "fio", "haud", "hic", "iam", "idem", "igitur", "ille", "in", "infra", "inter", "interim", "ipse", "is", "ita", "magis", "modo", "mox", "nam", "ne", "nec", "necque", "neque", "nisi", "non", "nos", "o", "ob", "per", "possum", "post", "pro", "quae", "quam", "quare", "qui", "quia", "quicumque", "quidem", "quilibet", "quis", "quisnam", "quisquam", "quisque", "quisquis", "quo", "quoniam", "sed", "si", "sic", "sive", "sub", "sui", "sum", "super", "suus", "tam", "tamen", "trans", "tu", "tum", "ubi", "uel", "uero", "ut", "t", "cos2", "coepio", "sum", "edo")
 stopwords_greek <- c("μή", "ἑαυτοῦ", "ἄν", "ἀλλ’", "ἀλλά", "ἄλλοσ", "ἀπό", "ἄρα", "αὐτόσ", "δ’", "δέ", "δή", "διά", "δαί", "δαίσ", "ἔτι", "ἐγώ", "ἐκ", "ἐμόσ", "ἐν", "ἐπί", "εἰ", "εἰμί", "εἴμι", "εἰσ", "γάρ", "γε", "γα^", "ἡ", "ἤ", "καί", "κατά", "μέν", "μετά", "μή", "ὁ", "ὅδε", "ὅσ", "ὅστισ", "ὅτι", "οὕτωσ", "οὗτοσ", "οὔτε", "οὖν", "οὐδείσ", "οἱ", "οὐ", "οὐδέ", "οὐκ", "περί", "πρόσ", "σύ", "σύν", "τά", "τε", "τήν", "τῆσ", "τῇ", "τι", "τί", "τισ", "τίσ", "τό", "τοί", "τοιοῦτοσ", "τόν", "τούσ", "τοῦ", "τῶν", "τῷ", "ὑμόσ", "ὑπέρ", "ὑπό", "ὡσ", "ὦ", "ὥστε", "ἐάν", "παρά", "σόσ")
+# stopwords_arabic and stopwords_persian are currently based on frequency only. I welcome pointers to stopword lists for Classical Arabic and Persian
 
 ## Decide which set of stopwords
 
@@ -45,21 +46,29 @@ stop_words <- stopwords_greek
 
 enableJIT(3)
 
-## Functions:
+### Functions:
+
+## Take the terms from a word list and put them into a format needed by the LDA package
 
 get.terms <- function(x) {
   index <- match(x, vocab)
   index <- index[!is.na(index)]
   rbind(as.integer(index - 1), as.integer(rep(1, length(index))))}
 
+## Replace word-token with lemmata-vector
+
 lemmatiser <- function(x){
   lemmatised <- stem_dictionary[[x]]
   return(lemmatised)}
+
+## Choose lemma from each lemmata-vector based on frequency of that lemma in the research corpus
 
 choose_lemma <- function(x){
   lemma <- names(which(NumberOccurrences[x]==max(NumberOccurrences[x])))
   if (length(lemma)==1)
     return(lemma)}
+
+### parsing the XML in R is a bit of a pain. I am happy for suggestions to make this more efficient!
 
 XMLminer <- function(x){
   xname <- xmlName(x)
@@ -74,6 +83,11 @@ XMLpassage2 <-function(xdata){
   result <- xmlParse(xdata)
   temp.df <- as.data.frame(t(xpathSApply(result, "//*/hdwd", XMLminer)), stringsAsFactors = FALSE)
   as.vector(temp.df[['text']])}
+
+### parsing function: Uses Perseids morphology API to retrive vector of lemmata
+### two drawbacks: 1. internet problems would not break code (not anymore), but lead to no lemma returned for requested.
+### Uses US server in Boston. Quick in Boston very slow from Europe
+### Possible solutions: Requesting already parsed data for edition, thus reducing the API requests from n=number of forms in a corpus to n=1.
 
 parsing <- function(x){
   URL <- paste(morpheusURL, x, "&lang=grc&engine=morpheusgrc", sep = "")
@@ -105,6 +119,44 @@ parsing <- function(x){
   if (nchar(lemma) == 0) lemma <- x
   message(x, " is ", lemma)
   return(lemma)}
+
+### quick helper functions for vector splitting
+
+first_element <- function(x){
+  first_element <- head(x, n=1)
+  return(first_element)}
+
+last_element <- function(x){
+  last_element <- tail(x, n=1)
+  return(last_element)}
+
+### find out how topic similarity of citable units
+### comparing the mean deviation of theta-values for each topic
+
+is_similar <- function(x) {
+  check <- all.equal(theta.frame[which(theta.frame[,1] == first_element(unlist(x))),], theta.frame[which(theta.frame[,1] == last_element(unlist(x))),]) # comparing with all.equal
+  result <- mean(as.numeric(sub(".*?difference: (.*?)", "\\1", check)[3:length(check)])) 
+  return(result)
+} # produces NA if compared with itself
+
+### building test matrix to compare a sentence with all other sentences in the corpus
+
+build_test <- function(x){
+  test_cases <- output_names [! output_names %in% x]
+  first_column <- rep(x, length(test_cases))
+  test_matrix <- matrix(nrow=length(test_cases), ncol = 2)
+  test_matrix[,1] <- first_column
+  test_matrix[,2] <- test_cases
+  return(test_matrix)
+}
+
+## Mark up known vocabulary with Markdown tags
+
+emph_function <- function(x){
+  replacement <- paste("**", text_vector[x], "**", sep="")
+  result <- c(text_vector[x], replacement) 
+  return(result)
+}
 
 ### Import corpus from CTS repository
 
@@ -340,30 +392,7 @@ sentence = 7
 search_string = paste("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:", as.character(book), "\\.", as.character(chapter), "\\.", as.character(sentence), sep = "")
 grep(search_string, corpus[,1])
 
-### experimental functions to find out similar sentences
-
-first_element <- function(x){
-  first_element <- head(x, n=1)
-  return(first_element)}
-
-last_element <- function(x){
-  last_element <- tail(x, n=1)
-  return(last_element)}
-
-is_similar <- function(x) {
-  check <- all.equal(theta.frame[which(theta.frame[,1] == first_element(unlist(x))),], theta.frame[which(theta.frame[,1] == last_element(unlist(x))),]) # comparing with all.equal
-  result <- mean(as.numeric(sub(".*?difference: (.*?)", "\\1", check)[3:length(check)])) 
-  return(result)
-} ### produces NA if compared with itself
-
-build_test <- function(x){
-  test_cases <- output_names [! output_names %in% x]
-  first_column <- rep(x, length(test_cases))
-  test_matrix <- matrix(nrow=length(test_cases), ncol = 2)
-  test_matrix[,1] <- first_column
-  test_matrix[,2] <- test_cases
-  return(test_matrix)
-}
+### experimental part
 
 test_sentence <- "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:1.22.1"
 test_mat <- build_test(test_sentence)
@@ -399,12 +428,6 @@ for (i in base){
 }
 base_parsed <- paste(unname(base_parsed), sep="", collapse = " ")
 base_parsed <- unique(unlist(strsplit(base_parsed, "[[:space:]]+")))
-
-emph_function <- function(x){
-  replacement <- paste("**", text_vector[x], "**", sep="")
-  result <- c(text_vector[x], replacement) 
-  return(result)
-}
 
 for (i in 1:length(similar_sentences.df[,3])){
   comparison <- unlist(strsplit(as.character(similar_sentences.df[i,3]), "[[:space:]]+"))
