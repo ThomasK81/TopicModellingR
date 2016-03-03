@@ -12,6 +12,13 @@ library(lda)
 library(LDAvis)
 library(compiler)
 
+## optional
+
+library(RColorBrewer)
+library(rCharts)
+library(d3heatmap)
+
+
 ## User settings:
 K <- 12
 G <- 5000
@@ -65,10 +72,12 @@ lemmatiser <- function(x){
 
 choose_lemma <- function(x){
   lemma <- names(which(NumberOccurrences[x]==max(NumberOccurrences[x])))
-  if (length(lemma)==1) {return(lemma)
+  if (length(lemma)==1) {
+    return(lemma)}
+  else {
+    return (x[1])
   }
-  else {return (x[1])}
-    }
+}
 
 ### parsing the XML in R is a bit of a pain. I am happy for suggestions to make this more efficient!
 
@@ -220,6 +229,7 @@ Time_fetching <- t2 - t1
 ## Build corpus
 
 corpus <- do.call("rbind",output_list) #combine all vectors into a matrix
+rm(output_list)
 corpus <- unique(corpus) # returns the unique rows of catalogue.
 output_names <- rownames(corpus)
 
@@ -228,6 +238,36 @@ temp.corpus[, 1] <- output_names
 temp.corpus[, 2] <- unname(corpus[,1])
 colnames(temp.corpus) <- c("identifier", "text")
 corpus <- temp.corpus
+rm(temp.corpus)
+
+### Perseus-text sometimes have inaccuracies in their punction. The next few lines address this. 
+
+corpus[,2] <- gsub(".", ". ", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(",", ", ", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(":", ": ", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(";", "; ", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub("’", "’ ", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub("†", "† ", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub("]", "] ", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub("[", " [", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(")", ") ", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub("(", " (", corpus[,2], fixed=TRUE)
+while(length(grep("   ", corpus[,2], fixed=TRUE))>0) {
+  corpus[,2] <- gsub("  ", " ", corpus[,2], fixed=TRUE)
+} ## repeat until none in corpus
+while(length(grep("  ", corpus[,2], fixed=TRUE))>0) {
+  corpus[,2] <- gsub("  ", " ", corpus[,2], fixed=TRUE)
+} ## repeat until none in corpus
+corpus[,2] <- gsub(" ,", ",", corpus[,2], fixed=TRUE) 
+corpus[,2] <- gsub(" .", ".", corpus[,2], fixed=TRUE) 
+corpus[,2] <- gsub(" :", ":", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(" ;", ";", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(" ;", ";", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(" ’", "’", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(" ]", "]", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(" )", ")", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub("( ", "(", corpus[,2], fixed=TRUE)
+corpus[,2] <- trimws(corpus[,2])
 
 ## Save corpus to disk
 
@@ -275,27 +315,36 @@ time_stemming <- t2 - t1
 t1 <- Sys.time()
 
 temp <- strsplit(research_corpus, " ")
-temp_correct <- list()
+temp_correct <- sapply(corpus[,1],function(x) NULL)
 for (i in 1:length(temp)) {
   temp_correct[[i]] <- sapply(temp[[i]], lemmatiser) 
 }
 NumberOccurrences <- table(unlist(temp_correct))
 
-corrected_corpus <- list()
-for (n in 1:length(temp_correct)) {
-  temp_corrected <- list()
-  counter <- n
-  for (i in 1:length(temp_correct[[counter]])) {
-    temp_corrected[[i]] <- choose_lemma(temp_correct[[counter]][[i]])  
-  }  
-  corrected_corpus[[n]] <- temp_corrected
+build_corrected_corpus <- function(x) {
+  temp_corrected <- sapply(temp_correct[[x]], choose_lemma)
+  return(temp_corrected)
 }
+
+corrected_corpus <- sapply(corpus[,1], build_corrected_corpus)
+# for (n in 1:length(temp_correct)) {
+#  temp_corrected <- list()
+#  counter <- n
+#  for (i in 1:length(temp_correct[[counter]])) {
+#    temp_corrected[[i]] <- choose_lemma(temp_correct[[counter]][[i]])  
+#  }  
+#  corrected_corpus[[n]] <- temp_corrected
+# }
+
+rm(temp)
+rm(temp_correct)
+rm(temp_corrected)
 
 for (i in 1:length(corrected_corpus)) {
-  corrected_corpus[[i]] <- paste(unlist(corrected_corpus[[i]]), collapse=" ")
+  corrected_corpus[i] <- paste(unlist(corrected_corpus[[i]]), collapse=" ")
 }
 
-research_corpus <- unlist(corrected_corpus)
+research_corpus <- as.character(unlist(corrected_corpus))
 
 # Save corrected corpus to disk
 
@@ -304,6 +353,7 @@ temp.corpus[, 1] <- output_names
 temp.corpus[, 2] <- research_corpus
 colnames(temp.corpus) <- c("identifier", "text")
 corpus_parsed <- temp.corpus
+rm(temp.corpus)
 write.table(corpus_parsed, file = 'corpus_parsed.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = FALSE, col.names = TRUE)
 
 ### Compare length of corpus and corpus_parsed
@@ -315,12 +365,14 @@ test_corpus_length[i] <- length(unlist(strsplit(as.character(unlist(corpus_parse
 }
 table_corpus_length <- table(test_corpus_length)
 bug_report <- which(test_corpus_length == FALSE)
-
+difference <- sapply(bug_report, function(x) {length(unlist(strsplit(corpus[x,2], "[[:space:]]+"))) - length(unlist(strsplit(corpus_parsed[x,2], "[[:space:]]+")))})
 # Split to word level
 
 doc.list <- strsplit(research_corpus, "[[:space:]]+")
 t2 <- Sys.time()
 time_correcting <- t2 - t1
+
+confidence_placement <- 100 - 100 * length(bug_report)/(length(corpus)/2)
 
 ### Prepare Topic-modelling 
 
@@ -497,3 +549,134 @@ colnames(similar_sentences.frame) <- c(colnames(similar_sentences.df[1]), colnam
   
 filepath <- paste('Greek_tab/', test_sentence, '.csv', sep="")
 write.table(similar_sentences.frame, file = filepath, append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = FALSE, col.names = TRUE)
+
+### more experiments // very experimental and not made for speedy processing
+
+test_matrix <- matrix(nrow=length(corpus[,1]), ncol = length(corpus[,1]))
+rownames(test_matrix) <- corpus[,1]
+colnames(test_matrix) <- corpus[,1]
+
+is_similar2 <- function(x,y) {
+  check <- all.equal(theta.frame[which(theta.frame[,1] == x),], theta.frame[which(theta.frame[,1] == y),]) # comparing with all.equal
+  check2 <- all.equal(theta.frame[which(theta.frame[,1] == y),], theta.frame[which(theta.frame[,1] == x),]) # comparing with all.equal
+  if (length(check) == 1) {if (check == TRUE) {
+    result <- 0
+    return(result)
+  }}
+  result1 <- mean(as.numeric(sub(".*?difference: (.*?)", "\\1", check)[3:length(check)]))
+  result2 <- mean(as.numeric(sub(".*?difference: (.*?)", "\\1", check2)[3:length(check2)]))
+  result <- (result1 + result2) / 2
+  return(result)}
+
+### It crawls to build the matrix: around 12h for Thucydides on MacBookPro, 8GB
+### Don't execute, unless you really want it
+
+t1 <- Sys.time()
+for (i in corpus[,1][1:100]) {
+  for (j in corpus[,1][1:100]) {
+    test_matrix[which(corpus[,1] == i), which(corpus[,1] == j)] <- is_similar2(i,j)
+  }
+}
+t2 <- Sys.time()
+time_testing_similarity <- t2 - t1
+time_testing_similarity
+
+
+# find sight readings
+
+smallest_notZeroNA <- apply(na.omit(test_matrix), 1, FUN = function(x) {min(x[x > 0])})
+similarSentences <- which(test_matrix <= max(smallest_notZeroNA) & test_matrix > 0, arr.ind=T )
+
+
+sightreading <- function(x,y) {
+  i <- which(colnames(test_matrix) == x)
+  sight_names <- names(head(sort(test_matrix[names(which(similarSentences[,2] == i)), i]), n=y))
+  return(sight_names)
+}
+
+### topic-corpus visualisation
+
+passage.topic.value <- function(x) {
+  max_score <- max(theta.frame[which(theta.frame[,1] == x),2:13])
+  topic <- which(theta.frame[which(theta.frame[,1] == x),2:13] == max_score)
+  result <- topic + max_score
+  result <- result[1]
+  return(result)
+}
+
+just.topic.value <- function(x) {
+  max_score <- max(theta.frame[which(theta.frame[,1] == x),2:13])
+  result <- max_score[1]
+  return(result)
+}
+
+find_passages <- function(x) {
+  positions <- which(grepl(x,theta.frame[,1], fixed=TRUE) == TRUE)
+  return(theta.frame[,1][positions])
+}
+
+book1 <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:1.")
+book2 <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:2.")
+book3 <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:3.")
+book4 <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:4.")
+book5 <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:5.")
+book6 <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:6.")
+book7 <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:7.")
+book8 <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:8.")
+AllThuc <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1")
+
+colourise <- function(x) {
+  if (x > 1 & x < 2) {return(vis.col[1])}
+  if (x > 2 & x < 3) {return(vis.col[2])}
+  if (x > 3 & x < 4) {return(vis.col[3])}
+  if (x > 4 & x < 5) {return(vis.col[4])}
+  if (x > 5 & x < 6) {return(vis.col[5])}
+  if (x > 6 & x < 7) {return(vis.col[6])}
+  if (x > 7 & x < 8) {return(vis.col[7])}
+  if (x > 8 & x < 9) {return(vis.col[8])}
+  if (x > 9 & x < 10) {return(vis.col[9])}
+  if (x > 10 & x < 11) {return(vis.col[10])}
+  if (x > 11 & x < 12) {return(vis.col[11])}
+  if (x > 12 & x < 13) {return(vis.col[12])}
+}
+
+colourise2 <- function(x) {
+  if (x > 1 & x < 2) {return("Topic 1")}
+  if (x > 2 & x < 3) {return("Topic 2")}
+  if (x > 3 & x < 4) {return("Topic 3")}
+  if (x > 4 & x < 5) {return("Topic 4")}
+  if (x > 5 & x < 6) {return("Topic 5")}
+  if (x > 6 & x < 7) {return("Topic 6")}
+  if (x > 7 & x < 8) {return("Topic 7")}
+  if (x > 8 & x < 9) {return("Topic 8")}
+  if (x > 9 & x < 10) {return("Topic 9")}
+  if (x > 10 & x < 11) {return("Topic 10")}
+  if (x > 11 & x < 12) {return("Topic 11")}
+  if (x > 12 & x < 13) {return("Topic 12")}
+}
+
+vis.col <- colorRampPalette(brewer.pal(10, "Set3"))(12)
+topics_book2.df <- data.frame(matrix(NA, nrow=length(book2), ncol=4))
+topics_book2.df[,1] <- book2
+topics_book2.df[,2] <- sapply(book2, passage.topic.value)
+topics_book2.df[,3] <- sapply(topics_book2.df[,2], colourise2)
+topics_book2.df[,4] <- sapply(book2, just.topic.value)
+colnames(topics_book2.df) <- c("Passage", "Topic", "Colour", "TopicValue")
+
+chart1_1 <- rPlot(
+  x = "Passage",
+  y = "TopicValue",
+  data = topics_book2.df,
+  type = "bar",
+  color = "Colour")
+
+chart2_6 <- rPlot(TopicValue ~ Passage | Colour,
+                  data = AllThuc.df,
+                  color = "Colour",
+                  type = 'bar',
+                  size = list(const = 3),
+                  width = 600,
+                  height = 1800)
+
+chart2_6$save('TopicsThuc.html', standalone = TRUE)
+
