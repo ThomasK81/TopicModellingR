@@ -2,6 +2,7 @@
 *.bak
 *~
 corpus.csv
+Backup.RData
 
 # Windows and Mac OS X
 Thumbs.db

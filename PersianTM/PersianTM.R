@@ -328,15 +328,15 @@ is_similar2 <- function(x,y) {
 ### topic-corpus visualisation
 
 passage.topic.value <- function(x) {
-  max_score <- max(theta.frame[which(theta.frame[,1] == x),2:13])
-  topic <- which(theta.frame[which(theta.frame[,1] == x),2:13] == max_score)
+  max_score <- max(theta.frame[which(theta.frame[,1] == x),2:16])
+  topic <- which(theta.frame[which(theta.frame[,1] == x),2:16] == max_score)
   result <- topic + max_score
   result <- result[1]
   return(result)
 }
 
 just.topic.value <- function(x) {
-  max_score <- max(theta.frame[which(theta.frame[,1] == x),2:13])
+  max_score <- max(theta.frame[which(theta.frame[,1] == x),2:16])
   result <- max_score[1]
   return(result)
 }
@@ -369,27 +369,39 @@ colourise2 <- function(x) {
   if (x > 15 & x < 16) {return("Topic 15")}
 }
 
-topics_sanaee.df <- data.frame(matrix(NA, nrow=length(sanaee), ncol=4))
-topics_sanaee.df[,1] <- sanaee
-topics_sanaee.df[,2] <- sapply(sanaee, passage.topic.value)
-topics_sanaee.df[,3] <- sapply(topics_sanaee.df[,2], colourise2)
-topics_sanaee.df[,4] <- sapply(sanaee, just.topic.value)
-colnames(topics_sanaee.df) <- c("Passage", "TopicValue2", "Topic", "TopicValue")
+topics_AllPers.df <- data.frame(matrix(NA, nrow=length(AllPers), ncol=4))
+topics_AllPers.df[,1] <- AllPers
+topics_AllPers.df[,2] <- sapply(AllPers, passage.topic.value)
+topics_AllPers.df[,3] <- sapply(topics_AllPers.df[,2], colourise2)
+topics_AllPers.df[,4] <- sapply(AllPers, just.topic.value)
+colnames(topics_AllPers.df) <- c("Passage", "TopicValue2", "Topic", "TopicValue")
 
 chart1_1 <- rPlot(
   x = "Passage",
   y = "TopicValue",
-  data = topics_sanaee.df,
+  data = topics_AllPers.df,
   type = "bar",
   color = "Topic")
 
 chart_sanaee <- rPlot(TopicValue ~ Passage | Topic,
-                  data = topics_sanaee.df,
+                  data = topics_AllPers.df,
                   color = "Topic",
                   type = 'bar',
                   size = list(const = 3),
                   width = 600,
                   height = 1800)
 
-chart_sanaee$save('TopicsSanaee.html', standalone = TRUE)
+chart_sanaee$save('TopicsAllPers.html', standalone = TRUE)
+
+topics_AllPers.df.sorted <- topics_AllPers.df[with(topics_AllPers.df, order(-TopicValue2)), ]
+
+chart_topics_sorted <- rPlot(TopicValue ~ Passage | Topic,
+                      data = topics_AllPers.df.sorted,
+                      color = "Topic",
+                      type = 'bar',
+                      size = list(const = 3),
+                      width = 600,
+                      height = 1800)
+
+chart_topics_sorted$save('TopicsAllPersSorted.html', standalone = TRUE)
 
