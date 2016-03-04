@@ -1,6 +1,7 @@
 # Common files
 *.bak
 *~
+corpus.csv
 
 # Windows and Mac OS X
 Thumbs.db

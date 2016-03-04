@@ -35,7 +35,7 @@ requestURN <- "urn:cts:greekLit:tlg0003.tlg001" # urn:cts:latinLit:phi0448.phi00
 capabilities_URL <- "http://www.perseus.tufts.edu/hopper/CTS?request=GetCapabilities"
 baseURL <- "http://www.perseus.tufts.edu/hopper/CTS?request=GetPassage&urn="
 reffURL <- "http://www.perseus.tufts.edu/hopper/CTS?request=GetValidReff&urn="
-morpheusURL <- "https://services.perseids.org/bsp/morphologyservice/analysis/word?word="
+morpheusURL <- "http://services.perseids.org/bsp/morphologyservice/analysis/word?word="
 searchterms <- ""
 
 ## read in some stopwords:
