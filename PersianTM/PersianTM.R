@@ -216,6 +216,7 @@ term.table2 <- table(all_for_stop_words)
 term.table2 <- sort(term.table2, decreasing = TRUE)
 
 stop_words <- as.data.frame(term.table2)
+rm(term.table2)
 stop_words <- row.names(as.data.frame(stop_words[1:200,]))
 remove_from_sw <- c(stop_words[37], stop_words[41], stop_words[63], stop_words[65], stop_words[67], stop_words[79], stop_words[86], stop_words[91], stop_words[92], stop_words[94], stop_words[96], stop_words[101], stop_words[116], stop_words[117], stop_words[118], stop_words[120], stop_words[121], stop_words[123], stop_words[128], stop_words[138], stop_words[141], stop_words[142], stop_words[159], stop_words[160], stop_words[164], stop_words[165], stop_words[166], stop_words[171], stop_words[174], stop_words[180], stop_words[182], stop_words[183], stop_words[186], stop_words[187], stop_words[188], stop_words[191], stop_words[192])
 stop_words <- stop_words [! stop_words %in% remove_from_sw]
