@@ -1,6 +1,6 @@
-## setwd
+## setwd, modify according to your needs
 
-setwd("~/OneDrive/GreekTM")
+setwd("~/OneDrive/TopicModellingR/GreekTM")
 
 ## libraries needed
 
@@ -10,29 +10,32 @@ library(RCurl)
 library(plyr)
 library(lda)
 library(LDAvis)
+library(compiler)
+
+## optional
+
+library(RColorBrewer)
+library(rCharts)
+library(d3heatmap)
+
 
 ## User settings:
-K <- 37
+K <- 12
 G <- 5000
 alpha <- 0.02
 eta <- 0.02
-seed <- 12
+seed <- 37
 terms_shown <- 40
 swLatin <- TRUE
 swEnglish <- FALSE
 swGreek <- FALSE
 swAdditional <- TRUE
 language <- "Greek" # (Persian, Arabic, Latin)
-
-
-# requestURN <- "urn:cts:latinLit:phi0448.phi001"
-requestURN <- "urn:cts:greekLit:tlg0003.tlg001"
+requestURN <- "urn:cts:greekLit:tlg0003.tlg001" # urn:cts:latinLit:phi0448.phi001
 capabilities_URL <- "http://www.perseus.tufts.edu/hopper/CTS?request=GetCapabilities"
 baseURL <- "http://www.perseus.tufts.edu/hopper/CTS?request=GetPassage&urn="
 reffURL <- "http://www.perseus.tufts.edu/hopper/CTS?request=GetValidReff&urn="
-morpheusURL1 <- "http://www.perseus.tufts.edu/hopper/xmlmorph?lang=lat&lookup="
-morpheusURL2 <- "https://services.perseids.org/bsp/morphologyservice/analysis/word?word="
-
+morpheusURL <- "http://services.perseids.org/bsp/morphologyservice/analysis/word?word="
 searchterms <- ""
 
 ## read in some stopwords:
@@ -40,87 +43,240 @@ searchterms <- ""
 stopwords_english <- stopwords("SMART")
 stopwords_latin <- c("ab", "ac", "ad", "adhic", "aliqui", "aliquis", "an", "ante", "apud", "at", "atque", "aut", "autem", "cum", "cur", "de", "deinde", "dum", "ego", "enim", "ergo", "es", "est", "et", "etiam", "etsi", "ex", "fio", "haud", "hic", "iam", "idem", "igitur", "ille", "in", "infra", "inter", "interim", "ipse", "is", "ita", "magis", "modo", "mox", "nam", "ne", "nec", "necque", "neque", "nisi", "non", "nos", "o", "ob", "per", "possum", "post", "pro", "quae", "quam", "quare", "qui", "quia", "quicumque", "quidem", "quilibet", "quis", "quisnam", "quisquam", "quisque", "quisquis", "quo", "quoniam", "sed", "si", "sic", "sive", "sub", "sui", "sum", "super", "suus", "tam", "tamen", "trans", "tu", "tum", "ubi", "uel", "uero", "ut", "t", "cos2", "coepio", "sum", "edo")
 stopwords_greek <- c("μή", "ἑαυτοῦ", "ἄν", "ἀλλ’", "ἀλλά", "ἄλλοσ", "ἀπό", "ἄρα", "αὐτόσ", "δ’", "δέ", "δή", "διά", "δαί", "δαίσ", "ἔτι", "ἐγώ", "ἐκ", "ἐμόσ", "ἐν", "ἐπί", "εἰ", "εἰμί", "εἴμι", "εἰσ", "γάρ", "γε", "γα^", "ἡ", "ἤ", "καί", "κατά", "μέν", "μετά", "μή", "ὁ", "ὅδε", "ὅσ", "ὅστισ", "ὅτι", "οὕτωσ", "οὗτοσ", "οὔτε", "οὖν", "οὐδείσ", "οἱ", "οὐ", "οὐδέ", "οὐκ", "περί", "πρόσ", "σύ", "σύν", "τά", "τε", "τήν", "τῆσ", "τῇ", "τι", "τί", "τισ", "τίσ", "τό", "τοί", "τοιοῦτοσ", "τόν", "τούσ", "τοῦ", "τῶν", "τῷ", "ὑμόσ", "ὑπέρ", "ὑπό", "ὡσ", "ὦ", "ὥστε", "ἐάν", "παρά", "σόσ")
+# stopwords_arabic and stopwords_persian are currently based on frequency only. I welcome pointers to stopword lists for Classical Arabic and Persian
 
 ## Decide which set of stopwords
 
 stop_words <- stopwords_greek
 
-## See which authors are in CTS repository
+# Enable JIT-compiling
 
-URL <- capabilities_URL
+enableJIT(3)
 
-URLcontent <- getURLContent(URL)
-XMLpassage <-function(xdata){
-  dumFun <- function(x){
-    xname <- xmlName(x)
-    xattrs <- xmlAttrs(x)
-    c(sapply(xmlChildren(x), xmlValue), name = xname, xattrs)}
-  dum <- xmlParse(xdata)
-  as.data.frame(t(xpathSApply(dum, "//*/work", dumFun)), stringsAsFactors = FALSE)}
-output_list <- XMLpassage(URLcontent)
+### Functions:
+
+## Take the terms from a word list and put them into a format needed by the LDA package
+
+get.terms <- function(x) {
+  index <- match(x, vocab)
+  index <- index[!is.na(index)]
+  rbind(as.integer(index - 1), as.integer(rep(1, length(index))))}
+
+## Replace word-token with lemmata-vector
+
+lemmatiser <- function(x){
+  lemmatised <- stem_dictionary[[x]]
+  return(lemmatised)}
+
+## Choose lemma from each lemmata-vector based on frequency of that lemma in the research corpus
+
+choose_lemma <- function(x){
+  lemma <- names(which(NumberOccurrences[x]==max(NumberOccurrences[x])))
+  if (length(lemma)==1) {
+    return(lemma)}
+  else {
+    return (x[1])
+  }
+}
+
+### parsing the XML in R is a bit of a pain. I am happy for suggestions to make this more efficient!
+
+XMLminer <- function(x){
+  xname <- xmlName(x)
+  xattrs <- xmlAttrs(x)
+  c(sapply(xmlChildren(x), xmlValue), name = xname, xattrs)}
+
+XMLpassage1 <-function(xdata){
+  result <- xmlParse(xdata)
+  as.data.frame(t(xpathSApply(result, "//*/tei:body", XMLminer)), stringsAsFactors = FALSE)}
+
+XMLpassage2 <-function(xdata){
+  result <- xmlParse(xdata)
+  temp.df <- as.data.frame(t(xpathSApply(result, "//*/hdwd", XMLminer)), stringsAsFactors = FALSE)
+  as.vector(temp.df[['text']])}
+
+### parsing function: Uses Perseids morphology API to retrive vector of lemmata
+### two drawbacks: 1. internet problems would not break code (not anymore), but lead to no lemma returned for requested.
+### Uses US server in Boston. Quick in Boston very slow from Europe
+### Possible solutions: Requesting already parsed data for edition, thus reducing the API requests from n=number of forms in a corpus to n=1.
+
+parsing <- function(x){
+  word_form <- x
+  URL <- paste(morpheusURL, word_form, "&lang=grc&engine=morpheusgrc", sep = "")
+  message(round((match(word_form, corpus_words)-1)/length(corpus_words)*100, digits=2), "% processed. Checking ", x," now.")
+  
+  URLcontent <- tryCatch({
+    getURLContent(URL)}, 
+    error = function(err)
+    {tryCatch({
+      Sys.sleep(0.1)
+      message("Try once more")
+      getURLContent(URL)},
+      error = function(err)
+      {message("Return original value: ", word_form)
+      return(word_form)
+      })
+    })
+  if (URLcontent == "ServerError") {
+    lemma <- x
+    message(x, " is ", lemma)
+    return(lemma)}
+  else {
+    lemma <- if (is.null(XMLpassage2(URLcontent)) == TRUE) {
+      lemma <- x
+      message(x, " is ", lemma)
+      return(lemma)}
+    else {lemma <- tryCatch({XMLpassage2(URLcontent)},
+                   error = function(err) {
+                     message(x, " not found. Return original value.")
+                     lemma <- "NotFound1"
+                     message(x, " is ", lemma)
+                     return(lemma)})
+    
+    lemma <- gsub("[0-9]", "", lemma)
+    lemma <- tolower(lemma)
+    lemma <- unique(lemma)
+    if (nchar(lemma) == 0) {
+      lemma <- x
+      message(x, " is ", lemma)
+      return(lemma)}
+    else {
+      message(x, " is ", lemma)
+      return(lemma)
+    }
+  }
+  }
+}
+  
+### quick helper functions for vector splitting
+
+first_element <- function(x){
+  first_element <- head(x, n=1)
+  return(first_element)}
+
+last_element <- function(x){
+  last_element <- tail(x, n=1)
+  return(last_element)}
+
+### find out how topic similarity of citable units
+### comparing the mean deviation of theta-values for each topic
+
+is_similar <- function(x) {
+  check <- all.equal(theta.frame[which(theta.frame[,1] == first_element(unlist(x))),], theta.frame[which(theta.frame[,1] == last_element(unlist(x))),]) # comparing with all.equal
+  result <- mean(as.numeric(sub(".*?difference: (.*?)", "\\1", check)[3:length(check)])) 
+  return(result)
+} # produces NA if compared with itself
+
+### building test matrix to compare a sentence with all other sentences in the corpus
+
+build_test <- function(x){
+  test_cases <- output_names [! output_names %in% x]
+  first_column <- rep(x, length(test_cases))
+  test_matrix <- matrix(nrow=length(test_cases), ncol = 2)
+  test_matrix[,1] <- first_column
+  test_matrix[,2] <- test_cases
+  return(test_matrix)
+}
+
+## Mark up known vocabulary with Markdown tags
+
+emph_function <- function(x){
+  replacement <- paste("**", text_vector[x], "**", sep="")
+  result <- c(text_vector[x], replacement) 
+  return(result)
+}
 
 ### Import corpus from CTS repository
 
 ## Fetch Reffs for CTS Repository
 
 t1 <- Sys.time()
-
 message("Retrieve Reffs for ", requestURN)
 URL <- paste(reffURL, requestURN, sep = "")
 URLcontent <- getURLContent(URL)
 reffs <- unlist(strsplit(URLcontent, split="<urn>|</urn>"))
 reffs <- reffs[2:length(reffs)]
 reffs <- reffs[seq(1, length(reffs), 2)]
-
 t2 <- Sys.time()
-Reff_time <- t2 - t1
+time_ref <- t2 - t1
 
 ## Fetch Text from CTS Repository
 
 t1 <- Sys.time()
-
 output_list <- list()
 error_log <- list()
-
 for (i in reffs) {
   message("Retrieve section ", i)
   URL <- paste(baseURL, i, sep = "")
   message("Fetching ", URL)
-  URLcontent <- getURLContent(URL)
+  URLcontent <- tryCatch({getURLContent(URL)},
+    error = function(err)
+    {result <- getURLContent(URL)
+     return(result)}
+  )
   # Parse the XML and extract needed information. 
-  XMLpassage <-function(xdata){
-    dumFun <- function(x){
-      xname <- xmlName(x)
-      xattrs <- xmlAttrs(x)
-      c(sapply(xmlChildren(x), xmlValue), name = xname, xattrs)}
-    dum <- xmlParse(xdata)
-    as.data.frame(t(xpathSApply(dum, "//*/tei:body", dumFun)), stringsAsFactors = FALSE)}
   output_list[[i]] <- tryCatch({
-    XMLpassage(URLcontent)},
+    XMLpassage1(URLcontent)},
     error = function(err)
     {message(i, " -retrieval failed. Put in log.")
      error_log[[i]] <- i
      return("fehler")}
   )
   message("---------------------------------------")}
-
 t2 <- Sys.time()
-Fetch_time <- t2 - t1
+Time_fetching <- t2 - t1
 
 ## Build corpus
 
 corpus <- do.call("rbind",output_list) #combine all vectors into a matrix
+rm(output_list)
 corpus <- unique(corpus) # returns the unique rows of catalogue.
+output_names <- rownames(corpus)
+
+temp.corpus <- matrix(nrow=length(corpus[,1]), ncol = length(corpus[1,]))
+temp.corpus[, 1] <- output_names
+temp.corpus[, 2] <- unname(corpus[,1])
+colnames(temp.corpus) <- c("identifier", "text")
+corpus <- temp.corpus
+rm(temp.corpus)
+
+### Perseus-text sometimes have inaccuracies in their punction. The next few lines address this. 
+
+corpus[,2] <- gsub(".", ". ", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(",", ", ", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(":", ": ", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(";", "; ", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub("’", "’ ", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub("†", "† ", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub("]", "] ", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub("[", " [", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(")", ") ", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub("(", " (", corpus[,2], fixed=TRUE)
+while(length(grep("   ", corpus[,2], fixed=TRUE))>0) {
+  corpus[,2] <- gsub("  ", " ", corpus[,2], fixed=TRUE)
+} ## repeat until none in corpus
+while(length(grep("  ", corpus[,2], fixed=TRUE))>0) {
+  corpus[,2] <- gsub("  ", " ", corpus[,2], fixed=TRUE)
+} ## repeat until none in corpus
+corpus[,2] <- gsub(" ,", ",", corpus[,2], fixed=TRUE) 
+corpus[,2] <- gsub(" .", ".", corpus[,2], fixed=TRUE) 
+corpus[,2] <- gsub(" :", ":", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(" ;", ";", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(" ;", ";", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(" ’", "’", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(" ]", "]", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub(" )", ")", corpus[,2], fixed=TRUE)
+corpus[,2] <- gsub("( ", "(", corpus[,2], fixed=TRUE)
+corpus[,2] <- trimws(corpus[,2])
 
 ## Save corpus to disk
 
-write.table(corpus, file = 'corpus.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = TRUE, col.names = TRUE)
+write.table(corpus, file = 'corpus.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = FALSE, col.names = TRUE)
 
 ## Build base for topic modelling
 
-research_corpus <- corpus[,"div"]
+research_corpus <- corpus[,"text"]
 research_corpus <- factor(research_corpus)
-output_names <- rownames(corpus)
 
 ### pre-processing:
 
@@ -137,140 +293,86 @@ research_corpus <- gsub("[[:space:]]+$", "", research_corpus) # remove whitespac
 research_corpus <- gsub("[0-9]", "", research_corpus) #remove numbers
 
 ## produce dictionary for stemming:
+
 t1 <- Sys.time()
 
 ## tokenize on space and output as a list:
 doc.list <- strsplit(research_corpus, "[[:space:]]+")
-
 corpus_words <- unique(unlist(doc.list))
 corpus_words <- sort(corpus_words)
 
-## function for stemming
-
-parsing2 <- function(x){
-  URL <- paste(morpheusURL2, x, "&lang=grc&engine=morpheusgrc", sep = "")
-  message("Accessing ", URL)
-  
-  XMLpassage <-function(xdata){
-    miner <- function(x){
-      xname <- xmlName(x)
-      xattrs <- xmlAttrs(x)
-      c(sapply(xmlChildren(x), xmlValue), name = xname, xattrs)}
-    result <- xmlParse(xdata)
-    temp.df <- as.data.frame(t(xpathSApply(result, "//*/hdwd", miner)), stringsAsFactors = FALSE)
-    as.vector(temp.df[['text']])}
-  
-  URLcontent <- tryCatch({
-    getURLContent(URL)}, 
-    error = function(err)
-    {message(x, " -query caused server error. Return original value.")
-     content <- "ServerError"
-     return(content)})
-  if (URLcontent == "ServerError") {lemma <- x
-                                    return(lemma)}
-  
-  lemma <- if (is.null(XMLpassage(URLcontent)) == TRUE) {
-    lemma <- x
-    return(lemma)}
-  else {tryCatch({XMLpassage(URLcontent)},
-                 error = function(err) {
-                   message(x, " not found. Return original value.")
-                   lemma <- "NotFound1"
-                   return(lemma)})}
-  
-  lemma <- gsub("[0-9]", "", lemma)
-  lemma <- tolower(lemma)
-  lemma <- unique(lemma)
-  # lemma <- paste(lemma, sep="", collapse="_")
-  if (nchar(lemma) == 0) lemma <- x
-  message(x, " is ", lemma)
-  return(lemma)}
-
-parsing <- function(x){
-  URL <- paste(morpheusURL1, x, sep = "")
-  message("Accessing ", URL)
-  
-  XMLpassage <-function(xdata){
-    miner <- function(x){
-      xname <- xmlName(x)
-      xattrs <- xmlAttrs(x)
-      c(sapply(xmlChildren(x), xmlValue), name = xname, xattrs)}
-    result <- xmlParse(xdata)
-    temp.df <- as.data.frame(t(xpathSApply(result, "//*/lemma", miner)), stringsAsFactors = FALSE)
-    as.vector(temp.df[['text']])}
-  
-  URLcontent <- tryCatch({
-    getURLContent(URL)}, 
-    error = function(err)
-    {message(x, " -query caused server error. Return original value.")
-     content <- "ServerError"
-     return(content)})
-  if (URLcontent == "ServerError") {lemma <- parsing2(x)
-                                    return(lemma)}
-  
-  lemma <- if (is.null(XMLpassage(URLcontent)) == TRUE) {
-    lemma <- parsing2(x)
-    return(lemma)}
-  else {tryCatch({XMLpassage(URLcontent)},
-                 error = function(err) {
-                   message(x, " not found. Return original value.")
-                   lemma <- "NotFound1"
-                   return(lemma)})}
-  
-  lemma <- gsub("[0-9]", "", lemma)
-  lemma <- tolower(lemma)
-  lemma <- unique(lemma)
-  # lemma <- paste(lemma, sep="", collapse="_")
-  if (nchar(lemma) == 0) lemma <- x
-  message(x, " is ", lemma)
-  return(lemma)}
-
-## lemmatiser function
-
-lemmatiser <- function(x){
-  lemmatised <- stem_dictionary[[x]]
-  return(lemmatised)}
-
 ## stemming
 
-stem_dictionary <- sapply(corpus_words, parsing2)
+stem_dictionary <- sapply(corpus_words, parsing)
 
 NumberOfForms <- max(unique(sapply(stem_dictionary, length)))
 number_lemmata <- sapply(stem_dictionary, length)
 
+t2 <- Sys.time()
+time_stemming <- t2 - t1
+
 ## correcting
+t1 <- Sys.time()
 
 temp <- strsplit(research_corpus, " ")
-temp_correct <- list()
+temp_correct <- sapply(corpus[,1],function(x) NULL)
 for (i in 1:length(temp)) {
   temp_correct[[i]] <- sapply(temp[[i]], lemmatiser) 
 }
 NumberOccurrences <- table(unlist(temp_correct))
 
-choose_lemma <- function(x){
-  lemma <- names(which(NumberOccurrences[x]==max(NumberOccurrences[x])))
-  if (length(lemma)==1)
-    return(lemma)}
-
-corrected_corpus <- list()
-for (n in 1:length(temp_correct)) {
-  temp_corrected <- list()
-  counter <- n
-  for (i in 1:length(temp_correct[[counter]])) {
-    temp_corrected[[i]] <- choose_lemma(temp_correct[[counter]][[i]])  
-  }  
-  corrected_corpus[[n]] <- temp_corrected
+build_corrected_corpus <- function(x) {
+  temp_corrected <- sapply(temp_correct[[x]], choose_lemma)
+  return(temp_corrected)
 }
+
+corrected_corpus <- sapply(corpus[,1], build_corrected_corpus)
+# for (n in 1:length(temp_correct)) {
+#  temp_corrected <- list()
+#  counter <- n
+#  for (i in 1:length(temp_correct[[counter]])) {
+#    temp_corrected[[i]] <- choose_lemma(temp_correct[[counter]][[i]])  
+#  }  
+#  corrected_corpus[[n]] <- temp_corrected
+# }
+
+rm(temp)
+rm(temp_correct)
+rm(temp_corrected)
 
 for (i in 1:length(corrected_corpus)) {
-  corrected_corpus[[i]] <- paste(unlist(corrected_corpus[[i]]), collapse=" ")
+  corrected_corpus[i] <- paste(unlist(corrected_corpus[[i]]), collapse=" ")
 }
 
-research_corpus <- unlist(corrected_corpus)
+research_corpus <- as.character(unlist(corrected_corpus))
+
+# Save corrected corpus to disk
+
+temp.corpus <- matrix(nrow=length(research_corpus), ncol = 2)
+temp.corpus[, 1] <- output_names
+temp.corpus[, 2] <- research_corpus
+colnames(temp.corpus) <- c("identifier", "text")
+corpus_parsed <- temp.corpus
+rm(temp.corpus)
+write.table(corpus_parsed, file = 'corpus_parsed.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = FALSE, col.names = TRUE)
+
+### Compare length of corpus and corpus_parsed
+
+length_corpus <- length(corpus)/2
+test_corpus_length <- vector()
+for (i in 1:length_corpus){
+test_corpus_length[i] <- length(unlist(strsplit(as.character(unlist(corpus_parsed[i,2])), "[[:space:]]+")[1])) == length(unlist(strsplit(as.character(unlist(corpus[i,2])), "[[:space:]]+")[1]))
+}
+table_corpus_length <- table(test_corpus_length)
+bug_report <- which(test_corpus_length == FALSE)
+difference <- sapply(bug_report, function(x) {length(unlist(strsplit(corpus[x,2], "[[:space:]]+"))) - length(unlist(strsplit(corpus_parsed[x,2], "[[:space:]]+")))})
+# Split to word level
 
 doc.list <- strsplit(research_corpus, "[[:space:]]+")
 t2 <- Sys.time()
-correcting_time <- t2 - t1
+time_correcting <- t2 - t1
+
+confidence_placement <- 100 - 100 * length(bug_report)/(length(corpus)/2)
 
 ### Prepare Topic-modelling 
 
@@ -280,7 +382,7 @@ term.table <- sort(term.table, decreasing = TRUE)
 
 ## compute additional stop_words:
 add_stop_words <- as.data.frame(term.table)
-add_stop_words <- row.names(as.data.frame(add_stop_words[1:1,]))
+add_stop_words <- row.names(as.data.frame(add_stop_words[1:10,]))
 
 stop_words <- c(stop_words, add_stop_words)
 stop_words <- unique(stop_words)
@@ -292,10 +394,7 @@ term.table <- term.table[!del]
 vocab <- names(term.table)
 
 ## now put the documents into the format required by the lda package:
-get.terms <- function(x) {
-  index <- match(x, vocab)
-  index <- index[!is.na(index)]
-  rbind(as.integer(index - 1), as.integer(rep(1, length(index))))}
+
 documents <- lapply(doc.list, get.terms)
 
 ## Compute some statistics related to the data set:
@@ -334,23 +433,250 @@ json <- createJSON(phi = research_corpusAbstracts$phi,
                    R = terms_shown)
 
 ## Visualise and start browser
-serVis(json, out.dir = 'Greek_vis', open.browser = TRUE)
+serVis(json, out.dir = 'Greek_vis', open.browser = FALSE)
 
 ## get the tables
 
-dir.create("Latin_tab")
+dir.create("Greek_tab")
 
 # names(head(sort(phi.frame[,1], decreasing = TRUE)))
 
 ## get topic-term distributions and export as csv
-phi.frame <- t(data.frame(phi))
-colnames(phi.frame) <- paste("topic", as.character(1:K), sep="")
-colnames(phi.frame)[1] <- "term"
-write.table(phi.frame, file = 'Latin_tab/phi.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = TRUE, col.names = TRUE)
+phi.t <- t(phi)
+phi.t.df <- data.frame(matrix(nrow=length(phi.t[, 1]), ncol = K+1))
+phi.t.df[, 1] <- names(phi.t[,1])
+for (i in 1:K){
+  phi.t.df[, i+1] <- phi.t[, i]
+}
+phicolnames <- vector(mode="character", length=K+1)
+phicolnames[1] <- "term"
+for (i in 1:K){
+  phicolnames[i+1] <- paste(head(phi.t.df[order(phi.t.df[,i+1],decreasing=TRUE),], n=7)[,1], sep="", collapse="_")
+}
+colnames(phi.t.df) <- phicolnames
+write.table(phi.t.df, file = 'Greek_tab/phi.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = FALSE, col.names = TRUE)
 
 ## get document-topic distributions and export as csv
-theta.frame <- data.frame(theta)
-colnames(theta.frame) <- paste("topic", as.character(1:K-1), sep="")
-colnames(theta.frame)[1] <- "identifier"
-rownames(theta.frame) <- output_names
-write.table(theta.frame, file = 'Latin_tab/theta.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = TRUE, col.names = TRUE)
+theta.frame <- data.frame(matrix(nrow=length(theta[,1]), ncol = K+1))
+theta.frame[, 1] <- output_names
+for (i in 1:K){
+  theta.frame[, i+1] <- theta[, i]
+}
+thetacolnames <- phicolnames
+thetacolnames[1] <- "identifier"
+colnames(theta.frame) <- thetacolnames
+write.table(theta.frame, file = 'Greek_tab/theta.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = FALSE, col.names = TRUE)
+
+## Find exemplar sentence
+topic_number = 1
+exemplar_level = 1
+corpus[which(corpus[,1] == theta.frame[order(theta.frame[,topic_number+1],decreasing=TRUE),][exemplar_level,1]), 2]
+
+## Find vector number for URN
+grep("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:8.1", corpus[,1])
+book = 3
+chapter = 3
+sentence = 7
+search_string = paste("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:", as.character(book), "\\.", as.character(chapter), "\\.", as.character(sentence), sep = "")
+grep(search_string, corpus[,1])
+
+### experimental part
+
+test_sentence <- "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:2.48.1"
+test_mat <- build_test(test_sentence)
+similarity_mat <- data.frame(matrix(nrow=length(test_mat[,1]), ncol = 3))
+similarity_mat[, 1] <- test_mat[, 1]
+similarity_mat[, 2] <- test_mat[, 2]
+for (i in 1:length(test_mat[,1])){
+  similarity_mat[i, 3] <- is_similar(test_mat[i,])
+}
+
+similar_sentences <- similarity_mat[order(similarity_mat[,3]), ]
+similar_sentences <- head(similar_sentences[,2], 5)
+position <- corpus[,1] %in% similar_sentences
+similar_sentences.df <- data.frame(corpus[which(position == TRUE), 1], corpus[which(position == TRUE), 2], corpus_parsed[which(position == TRUE), 2])
+colnames(similar_sentences.df) <- c(test_sentence, corpus[which(corpus == test_sentence), 2], corpus_parsed[which(corpus_parsed == test_sentence), 2])
+
+base <- c("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:1.1.1", 
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:1.1.2", 
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:1.1.3", 
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:1.2.1",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:1.2.2",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:1.2.3",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:1.2.4",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:1.2.5",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:1.2.6",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:1.22.1",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:1.22.2",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:1.22.3",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:1.22.4",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:2.48.1",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:2.48.2",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:2.48.3",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:2.49.1",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:2.49.2",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:2.49.3",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:2.49.4",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:2.49.5",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:2.49.6",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:2.49.7",
+         "urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:2.49.8")
+base_parsed <- vector()
+for (i in base){
+  base_parsed[[i]] <- unname(corpus_parsed[which(corpus_parsed == i),][2])
+}
+base_parsed <- paste(unname(base_parsed), sep="", collapse = " ")
+base_parsed <- unique(unlist(strsplit(base_parsed, "[[:space:]]+")))
+
+for (i in 1:length(similar_sentences.df[,3])){
+  comparison <- unlist(strsplit(as.character(similar_sentences.df[i,3]), "[[:space:]]+"))
+  similar_sentences.df[i,4] <- as.character(paste(comparison %in% base_parsed, sep="", collapse = " "))
+  position_parsed <- which(unlist(strsplit(as.character(similar_sentences.df[i,4]), "[[:space:]]+")) == TRUE)
+  position_notparsed <- which(unlist(strsplit(as.character(similar_sentences.df[i,4]), "[[:space:]]+")) == FALSE)
+  text_vector <- unlist(strsplit(paste(similar_sentences.df[i,2], sep = "", collapse = " "), "[[:space:]]+"))
+  text_vector[position_parsed] <- paste("**", text_vector[position_parsed], "**", sep="")
+  text_vector[position_notparsed] <- paste("[", text_vector[position_notparsed], "]", "(http://www.perseus.tufts.edu/hopper/morph?l=", text_vector[position_notparsed], "&la=greek#lexicon)", sep="")
+  similar_sentences.df[i,5] <-paste(text_vector, sep="", collapse=" ") 
+  similar_sentences.df[i,6] <- unname(table(comparison %in% base_parsed)["TRUE"])/(unname(table(comparison %in% base_parsed)["TRUE"])+unname(table(comparison %in% base_parsed)["FALSE"]))*100
+}
+
+colnames(similar_sentences.df)[4] <- "Word from base sentence?"
+colnames(similar_sentences.df)[5] <- "Position known word"
+colnames(similar_sentences.df)[6] <- "Percent known"
+
+similar_sentences.frame <- data.frame(similar_sentences.df[,1], similar_sentences.df[,5], similar_sentences.df[,6])
+colnames(similar_sentences.frame) <- c(colnames(similar_sentences.df[1]), colnames(similar_sentences.df[2]), colnames(similar_sentences.df[6]))
+  
+filepath <- paste('Greek_tab/', test_sentence, '.csv', sep="")
+write.table(similar_sentences.frame, file = filepath, append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = FALSE, col.names = TRUE)
+
+### more experiments // very experimental and not made for speedy processing
+
+test_matrix <- matrix(nrow=length(corpus[,1]), ncol = length(corpus[,1]))
+rownames(test_matrix) <- corpus[,1]
+colnames(test_matrix) <- corpus[,1]
+
+is_similar2 <- function(x,y) {
+  check <- all.equal(theta.frame[which(theta.frame[,1] == x),], theta.frame[which(theta.frame[,1] == y),]) # comparing with all.equal
+  check2 <- all.equal(theta.frame[which(theta.frame[,1] == y),], theta.frame[which(theta.frame[,1] == x),]) # comparing with all.equal
+  if (length(check) == 1) {if (check == TRUE) {
+    result <- 0
+    return(result)
+  }}
+  result1 <- mean(as.numeric(sub(".*?difference: (.*?)", "\\1", check)[3:length(check)]))
+  result2 <- mean(as.numeric(sub(".*?difference: (.*?)", "\\1", check2)[3:length(check2)]))
+  result <- (result1 + result2) / 2
+  return(result)}
+
+### It crawls to build the matrix: around 12h for Thucydides on MacBookPro, 8GB
+### Don't execute, unless you really want it
+
+t1 <- Sys.time()
+for (i in corpus[,1][1:100]) {
+  for (j in corpus[,1][1:100]) {
+    test_matrix[which(corpus[,1] == i), which(corpus[,1] == j)] <- is_similar2(i,j)
+  }
+}
+t2 <- Sys.time()
+time_testing_similarity <- t2 - t1
+time_testing_similarity
+
+
+# find sight readings
+
+smallest_notZeroNA <- apply(na.omit(test_matrix), 1, FUN = function(x) {min(x[x > 0])})
+similarSentences <- which(test_matrix <= max(smallest_notZeroNA) & test_matrix > 0, arr.ind=T )
+
+
+sightreading <- function(x,y) {
+  i <- which(colnames(test_matrix) == x)
+  sight_names <- names(head(sort(test_matrix[names(which(similarSentences[,2] == i)), i]), n=y))
+  return(sight_names)
+}
+
+### topic-corpus visualisation
+
+passage.topic.value <- function(x) {
+  max_score <- max(theta.frame[which(theta.frame[,1] == x),2:13])
+  topic <- which(theta.frame[which(theta.frame[,1] == x),2:13] == max_score)
+  result <- topic + max_score
+  result <- result[1]
+  return(result)
+}
+
+just.topic.value <- function(x) {
+  max_score <- max(theta.frame[which(theta.frame[,1] == x),2:13])
+  result <- max_score[1]
+  return(result)
+}
+
+find_passages <- function(x) {
+  positions <- which(grepl(x,theta.frame[,1], fixed=TRUE) == TRUE)
+  return(theta.frame[,1][positions])
+}
+
+book1 <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:1.")
+book2 <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:2.")
+book3 <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:3.")
+book4 <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:4.")
+book5 <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:5.")
+book6 <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:6.")
+book7 <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:7.")
+book8 <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1:8.")
+AllThuc <- find_passages("urn:cts:greekLit:tlg0003.tlg001.perseus-grc1")
+
+colourise <- function(x) {
+  if (x > 1 & x < 2) {return(vis.col[1])}
+  if (x > 2 & x < 3) {return(vis.col[2])}
+  if (x > 3 & x < 4) {return(vis.col[3])}
+  if (x > 4 & x < 5) {return(vis.col[4])}
+  if (x > 5 & x < 6) {return(vis.col[5])}
+  if (x > 6 & x < 7) {return(vis.col[6])}
+  if (x > 7 & x < 8) {return(vis.col[7])}
+  if (x > 8 & x < 9) {return(vis.col[8])}
+  if (x > 9 & x < 10) {return(vis.col[9])}
+  if (x > 10 & x < 11) {return(vis.col[10])}
+  if (x > 11 & x < 12) {return(vis.col[11])}
+  if (x > 12 & x < 13) {return(vis.col[12])}
+}
+
+colourise2 <- function(x) {
+  if (x > 1 & x < 2) {return("Topic 1")}
+  if (x > 2 & x < 3) {return("Topic 2")}
+  if (x > 3 & x < 4) {return("Topic 3")}
+  if (x > 4 & x < 5) {return("Topic 4")}
+  if (x > 5 & x < 6) {return("Topic 5")}
+  if (x > 6 & x < 7) {return("Topic 6")}
+  if (x > 7 & x < 8) {return("Topic 7")}
+  if (x > 8 & x < 9) {return("Topic 8")}
+  if (x > 9 & x < 10) {return("Topic 9")}
+  if (x > 10 & x < 11) {return("Topic 10")}
+  if (x > 11 & x < 12) {return("Topic 11")}
+  if (x > 12 & x < 13) {return("Topic 12")}
+}
+
+vis.col <- colorRampPalette(brewer.pal(10, "Set3"))(12)
+topics_book2.df <- data.frame(matrix(NA, nrow=length(book2), ncol=4))
+topics_book2.df[,1] <- book2
+topics_book2.df[,2] <- sapply(book2, passage.topic.value)
+topics_book2.df[,3] <- sapply(topics_book2.df[,2], colourise2)
+topics_book2.df[,4] <- sapply(book2, just.topic.value)
+colnames(topics_book2.df) <- c("Passage", "Topic", "Colour", "TopicValue")
+
+chart1_1 <- rPlot(
+  x = "Passage",
+  y = "TopicValue",
+  data = topics_book2.df,
+  type = "bar",
+  color = "Colour")
+
+chart2_6 <- rPlot(TopicValue ~ Passage | Colour,
+                  data = AllThuc.df,
+                  color = "Colour",
+                  type = 'bar',
+                  size = list(const = 3),
+                  width = 600,
+                  height = 1800)
+
+chart2_6$save('TopicsThuc.html', standalone = TRUE)
+
