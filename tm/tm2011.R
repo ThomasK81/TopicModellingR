@@ -161,6 +161,18 @@ is_compound <- function(x) {
   return(result)
 }
 
+is_similar <- function(x) {
+  checker <- x
+  check_function <- function(y) {
+    checks_needed <- row.names(theta.frame) [! row.names(theta.frame) %in% checker]
+    result <- 
+    return(result)
+  }
+    check <- all.equal(theta.frame[row.names(theta.frame)[1],], theta.frame[row.names(theta.frame)[12],])
+  result <- mean(as.numeric(sub(".*?difference: (.*?)", "\\1", check)[2:length(check)]))}
+  return(result)
+}
+
 ngram.df$compound_score <- lapply(ngram.df$vector, is_compound)
 ngram.df$compound_score <- unlist(ngram.df$compound_score)
 ngram.df.ordered <- ngram.df[ order(ngram.df[,3], na.last=FALSE), ]
