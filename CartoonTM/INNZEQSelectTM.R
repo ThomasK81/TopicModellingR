@@ -69,8 +69,8 @@ find_passages <- function(x) {
 
 # Read corpus
 
-base_corpus <- read.table("EQ-Cartoons-No-Doubles-2.csv", sep=",", header=TRUE)
-base_corpus.date <- base_corpus[order(as.Date(base_corpus[,6], format="%d/%m/%Y")),]
+base_corpus <- read.table("IndexNZ_EQ-Sep-2010-Feb-2012_EQ_Score_Select.csv", sep=",", header=TRUE)
+base_corpus.date <- base_corpus[order(as.Date(base_corpus[,5], format="%d/%m/%Y")),]
 
 output_names <- c(as.character(base_corpus.date[,"identifier"]))
 
@@ -100,9 +100,9 @@ research_corpus <- gsub("[[:cntrl:]]", " ", research_corpus)  # replace control 
 research_corpus <- gsub("^[[:space:]]+", "", research_corpus) # remove whitespace at beginning of documents
 research_corpus <- gsub("[[:space:]]+$", "", research_corpus) # remove whitespace at end of documents
 research_corpus <- gsub("[0-9]", "", research_corpus) #remove numbers
+research_corpus <- gsub('"', '', research_corpus)  # replace punctuation with space
 research_corpus <- gsub("[[:space:]]+", " ", research_corpus) # remove multiple whitespace
 research_corpus <- trimws(research_corpus)
-
 
 # tokenize on space and output as a list:
 doc.list <- strsplit(research_corpus, "[[:space:]]+")
@@ -132,9 +132,7 @@ term.table <- sort(term.table, decreasing = TRUE)
 
 # determing stopwords
 
-stop_words2 <- as.data.frame(term.table)
-stop_words2 <- row.names(stop_words2[1:10,])
-stop_words <- c(stopwords_english, stop_words2)
+stop_words <- stopwords_english
 
 # remove terms that are stop words or occur fewer than "occurenses" times:
 occurences <- 3
@@ -189,11 +187,11 @@ json <- createJSON(phi = research_corpusAbstracts$phi,
                    R=terms_shown)
 
 #Visulise and start browser
-serVis(json, out.dir = 'Cartoon_vis', open.browser = FALSE)
+serVis(json, out.dir = 'INNZEQSelect_vis', open.browser = FALSE)
 
 ## get the tables
 
-dir.create("Cartoon_tab")
+dir.create("INNZEQSelect_tab")
 
 # names(head(sort(phi.frame[,1], decreasing = TRUE)))
 
@@ -210,7 +208,7 @@ for (i in 1:K){
   phicolnames[i+1] <- paste(head(phi.t.df[order(phi.t.df[,i+1],decreasing=TRUE),], n=7)[,1], sep="", collapse="_")
 }
 colnames(phi.t.df) <- phicolnames
-write.table(phi.t.df, file = 'Cartoon_tab/phi.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = FALSE, col.names = TRUE)
+write.table(phi.t.df, file = 'INNZEQSelect_tab/phi.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = FALSE, col.names = TRUE)
 
 ## get document-topic distributions and export as csv
 theta.frame <- data.frame(matrix(nrow=length(theta[,1]), ncol = K+1))
@@ -221,4 +219,4 @@ for (i in 1:K){
 thetacolnames <- phicolnames
 thetacolnames[1] <- "identifier"
 colnames(theta.frame) <- thetacolnames
-write.table(theta.frame, file = 'Cartoon_tab/theta.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = FALSE, col.names = TRUE)
+write.table(theta.frame, file = 'INNZEQSelect_tab/theta.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = FALSE, col.names = TRUE)

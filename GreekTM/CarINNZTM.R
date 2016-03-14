@@ -20,7 +20,7 @@ library(d3heatmap)
 
 
 ## User settings:
-K <- 12
+K <- 17
 G <- 5000
 alpha <- 0.02
 eta <- 0.02
@@ -69,20 +69,27 @@ find_passages <- function(x) {
 
 # Read corpus
 
-base_corpus <- read.table("EQ-Cartoons-No-Doubles-2.csv", sep=",", header=TRUE)
-base_corpus.date <- base_corpus[order(as.Date(base_corpus[,6], format="%d/%m/%Y")),]
+first_corpus <- read.table("Earthquake-Cartoon-Data-Sep-2010-Feb-2012-With-Doubles.csv", sep=",", header=TRUE)
+second_corpus <- read.table("IndexNZ_EQ-Sep-2010-Feb-2012_EQ_Score_Select.csv", sep=",", header=TRUE)
 
-output_names <- c(as.character(base_corpus.date[,"identifier"]))
+output_names <- c(as.character(first_corpus[,"identifier"]),
+                  as.character(second_corpus[,"identifier"]))
 
-publisher_names <- c(as.character(base_corpus.date[,"Publisher"]))
-publisher_names <- gsub('\"', '', publisher_names, fixed=TRUE)
-publisher_names <- strsplit(publisher_names, ";", fixed=TRUE)
-publisher_names <- unlist(publisher_names)
-publisher_names <- gsub("^[[:space:]]+", "", publisher_names)
-publisher_names <- gsub("[[:space:]]+$", "", publisher_names)
-publisher_names <- unique(publisher_names)
+research_corpus  <- c(as.character(first_corpus[,"description"]),
+                  as.character(second_corpus[,"description"]))
 
-research_corpus <- c(as.character(base_corpus.date[,"description"]))
+# base_corpus <- read.table("Earthquake-Cartoon-Data-Sep-2010-Feb-2012.csv", sep=",", header=TRUE)
+# base_corpus.date <- base_corpus[order(as.Date(base_corpus[,6], format="%d/%m/%Y")),]
+
+# output_names <- c(as.character(base_corpus.date[,"identifier"]))
+
+# publisher_names <- c(as.character(base_corpus.date[,"Publisher"]))
+# publisher_names <- gsub('\"', '', publisher_names, fixed=TRUE)
+# publisher_names <- strsplit(publisher_names, ";", fixed=TRUE)
+# publisher_names <- unlist(publisher_names)
+# publisher_names <- gsub("^[[:space:]]+", "", publisher_names)
+# publisher_names <- gsub("[[:space:]]+$", "", publisher_names)
+# publisher_names <- unique(publisher_names)
 
 # base_corpus <- read.table("sanai.csv", sep="\t", header=FALSE)
 
@@ -189,11 +196,11 @@ json <- createJSON(phi = research_corpusAbstracts$phi,
                    R=terms_shown)
 
 #Visulise and start browser
-serVis(json, out.dir = 'Cartoon_vis', open.browser = FALSE)
+serVis(json, out.dir = 'CarINNZ_vis', open.browser = FALSE)
 
 ## get the tables
 
-dir.create("Cartoon_tab")
+dir.create("CarINNZ_tab")
 
 # names(head(sort(phi.frame[,1], decreasing = TRUE)))
 
@@ -210,7 +217,7 @@ for (i in 1:K){
   phicolnames[i+1] <- paste(head(phi.t.df[order(phi.t.df[,i+1],decreasing=TRUE),], n=7)[,1], sep="", collapse="_")
 }
 colnames(phi.t.df) <- phicolnames
-write.table(phi.t.df, file = 'Cartoon_tab/phi.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = FALSE, col.names = TRUE)
+write.table(phi.t.df, file = 'CarINNZ_tab/phi.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = FALSE, col.names = TRUE)
 
 ## get document-topic distributions and export as csv
 theta.frame <- data.frame(matrix(nrow=length(theta[,1]), ncol = K+1))
@@ -221,4 +228,5 @@ for (i in 1:K){
 thetacolnames <- phicolnames
 thetacolnames[1] <- "identifier"
 colnames(theta.frame) <- thetacolnames
-write.table(theta.frame, file = 'Cartoon_tab/theta.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = FALSE, col.names = TRUE)
+write.table(theta.frame, file = 'CarINNZ_tab/theta.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = FALSE, col.names = TRUE)
+
