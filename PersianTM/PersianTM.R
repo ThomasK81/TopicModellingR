@@ -353,21 +353,8 @@ attar <- find_passages("urn:cts:perslit:attar")
 AllPers <- c(sanaee, anvari, attar)
 
 colourise2 <- function(x) {
-  if (x > 1 & x < 2) {return("Topic 1")}
-  if (x > 2 & x < 3) {return("Topic 2")}
-  if (x > 3 & x < 4) {return("Topic 3")}
-  if (x > 4 & x < 5) {return("Topic 4")}
-  if (x > 5 & x < 6) {return("Topic 5")}
-  if (x > 6 & x < 7) {return("Topic 6")}
-  if (x > 7 & x < 8) {return("Topic 7")}
-  if (x > 8 & x < 9) {return("Topic 8")}
-  if (x > 9 & x < 10) {return("Topic 9")}
-  if (x > 10 & x < 11) {return("Topic 10")}
-  if (x > 11 & x < 12) {return("Topic 11")}
-  if (x > 12 & x < 13) {return("Topic 12")}
-  if (x > 13 & x < 14) {return("Topic 13")}
-  if (x > 14 & x < 15) {return("Topic 14")}
-  if (x > 15 & x < 16) {return("Topic 15")}
+  string <- paste("Topic ", as.character(floor(x)), sep = "")
+  return(string)
 }
 
 topics_AllPers.df <- data.frame(matrix(NA, nrow=length(AllPers), ncol=4))
