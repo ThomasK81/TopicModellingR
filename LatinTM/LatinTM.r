@@ -221,6 +221,11 @@ temp.corpus[, 2] <- unname(corpus[,1])
 colnames(temp.corpus) <- c("identifier", "text")
 corpus <- temp.corpus
 
+### find ablativi absoluti
+
+fullstops <- unlist(lapply(corpus[,2], FUN = function(x) {length(grep(".", unlist(strsplit(as.character(x), '')), fixed=TRUE))}))
+
+
 ## Save corpus to disk
 
 write.table(corpus, file = 'corpus.csv', append = FALSE, quote = FALSE, sep = ",", eol = "\n", na = "NA", dec = ".", row.names = FALSE, col.names = TRUE)

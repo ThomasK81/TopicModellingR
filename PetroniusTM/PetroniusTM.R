@@ -176,9 +176,77 @@ CTSpassages <- function(x) {
 # Read corpus
 
 base_corpus <- read.table("PetroniusChaptersPerseus_AGTK.csv", sep=",", header=TRUE)
+base_corpus[,1] <- as.character(base_corpus[,1])
+base_corpus[,3] <- as.character(base_corpus[,3])
+base_corpus[,3] <- gsub('”', '"', base_corpus[,3]) # normalise 
 
-output_names <- as.character(base_corpus[,1])
-research_corpus <- as.character(base_corpus[,3])
+paragraphs <- c()
+paragraphs_identifier <- c()
+paragraph_numbers <- function(x) {
+  id_base <- base_corpus[which(base_corpus[,3] == x),1]
+  sen_paragraphs <- unlist(strsplit(x, '<p\\Wn="\\d">'))
+  sen_paragraphs <- sen_paragraphs[sen_paragraphs != ""]
+  id_numbers <- 1:length(sen_paragraphs)
+  id_numbers <- as.character(id_numbers)
+  sen_identifier <- paste(id_base, ".", id_numbers, sep = "")
+  sen_paragraphs <- gsub("<\\/p>", "", sen_paragraphs)
+  paragraphs_identifier <<- append(paragraphs_identifier, sen_identifier)
+  paragraphs <<- append(paragraphs, sen_paragraphs)
+}
+temp <- lapply(base_corpus[,3], paragraph_numbers)
+new_corpus <- data.frame(paragraphs_identifier, paragraphs)
+new_corpus[,2] <- as.character(new_corpus[,2])
+new_corpus[,1] <- as.character(new_corpus[,1])
+new_corpus[,2] <- gsub('> <', '><', new_corpus[,2], fixed=TRUE)
+new_corpus[,2] <- gsub('<milestone unit="quote_open"/><l>', '<l><milestone unit="quote_open"/>', new_corpus[,2], fixed=TRUE)
+
+lines <- c()
+lines_identifier <- c()
+line_numbers <- function(x) {
+  lineposition <- which(new_corpus[,2] == x)
+  id_base <- new_corpus[lineposition,1]  
+  if(grepl('<l>', x, fixed=TRUE)==TRUE) {
+    sen_paragraphs <- unlist(strsplit(x, '<l>'))
+    sen_paragraphs <- sen_paragraphs[sen_paragraphs != ""]
+    sen_paragraphs <- gsub("<\\/l>", "", sen_paragraphs)
+    verse_paragraph <- length(grep('<l>', unlist(strsplit(x, "[[:space:]]+")), fixed=TRUE))
+    if(verse_paragraph < length(sen_paragraphs)){
+      id_numbers <- 1:verse_paragraph
+      id_numbers <- as.character(id_numbers)
+      sen_identifier <- paste(id_base, ".", id_numbers, sep = "")
+      sen_identifier <<- c(id_base,sen_identifier)
+    }
+    else if (verse_paragraph == length(sen_paragraphs)) {
+      preceding <- tail(unlist(strsplit(tail(lines_identifier, n =1), ":")), n=1)
+      if(length(grep(".", unlist(strsplit(preceding, "")), fixed = TRUE)) == 1){
+        id_numbers <- 1:length(sen_paragraphs)
+        id_numbers <- as.character(id_numbers)
+        sen_identifier <- paste(id_base, ".", id_numbers, sep = "")
+      }
+      else if(length(grep(".", unlist(strsplit(preceding, "")), fixed = TRUE)) == 2) {
+        start <- as.integer(tail(unlist(strsplit(preceding, ".", fixed=TRUE)), n = 1))
+        start <- start
+        end <- start + length(sen_paragraphs)
+        id_numbers <- start:end
+        id_numbers <- as.character(id_numbers)
+        sen_identifier <- paste(id_base, ".", id_numbers, sep = "")
+      }
+      sen_identifier <<- sen_identifier
+    }    
+  }
+  else {
+    sen_identifier <- id_base
+    sen_paragraphs <- x
+  }
+  lines_identifier <<- append(lines_identifier, sen_identifier)
+  lines <<- append(lines, sen_paragraphs)
+}
+temp <- lapply(new_corpus[,2], line_numbers)
+
+new_corpus2 <- data.frame(lines_identifier, lines)
+
+output_names <- paragraphs_identifier)
+research_corpus <- paragraphs)
 
 research_corpus <- gsub("^[[:space:]]+", "", research_corpus) # remove whitespace at beginning of documents
 research_corpus <- gsub("[[:space:]]+$", "", research_corpus) # remove whitespace at end of documents

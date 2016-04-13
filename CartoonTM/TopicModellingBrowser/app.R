@@ -88,9 +88,161 @@ server <- function(input, output) {
              "14" = 14,
              "15" = 15,
              "16" = 16,
-             "17" = 17
-      )
-  })
+             "17" = 17)})
+  Authorities1Input <- reactive({
+    switch(input$authorities1,
+           "0" = 0,
+           "1" = 1,
+           "2" = 2,
+           "3" = 3,
+           "4" = 4,
+           "5" = 5,
+           "6" = 6,
+           "7" = 7,
+           "8" = 8,
+           "9" = 9,
+           "10" = 10,
+           "11" = 11,
+           "12" = 12,
+           "13" = 13,
+           "14" = 14,
+           "15" = 15,
+           "16" = 16,
+           "17" = 17,
+           "18" = 18,
+           "19" = 19,
+           "20" = 20,
+           "21" = 21,
+           "22" = 22)})
+  Authorities2Input <- reactive({
+    switch(input$authorities2,
+           "0" = 0,
+           "1" = 1,
+           "2" = 2,
+           "3" = 3,
+           "4" = 4,
+           "5" = 5,
+           "6" = 6,
+           "7" = 7,
+           "8" = 8,
+           "9" = 9,
+           "10" = 10,
+           "11" = 11,
+           "12" = 12,
+           "13" = 13,
+           "14" = 14,
+           "15" = 15,
+           "16" = 16,
+           "17" = 17,
+           "18" = 18,
+           "19" = 19,
+           "20" = 20,
+           "21" = 21,
+           "22" = 22)})
+  
+  Authorities3Input <- reactive({
+    switch(input$authorities3,
+           "0" = 0,
+           "1" = 1,
+           "2" = 2,
+           "3" = 3,
+           "4" = 4,
+           "5" = 5,
+           "6" = 6,
+           "7" = 7,
+           "8" = 8,
+           "9" = 9,
+           "10" = 10,
+           "11" = 11,
+           "12" = 12,
+           "13" = 13,
+           "14" = 14,
+           "15" = 15,
+           "16" = 16,
+           "17" = 17,
+           "18" = 18,
+           "19" = 19,
+           "20" = 20,
+           "21" = 21,
+           "22" = 22)})
+  
+  Authorities4Input <- reactive({
+    switch(input$authorities4,
+           "0" = 0,
+           "1" = 1,
+           "2" = 2,
+           "3" = 3,
+           "4" = 4,
+           "5" = 5,
+           "6" = 6,
+           "7" = 7,
+           "8" = 8,
+           "9" = 9,
+           "10" = 10,
+           "11" = 11,
+           "12" = 12,
+           "13" = 13,
+           "14" = 14,
+           "15" = 15,
+           "16" = 16,
+           "17" = 17,
+           "18" = 18,
+           "19" = 19,
+           "20" = 20,
+           "21" = 21,
+           "22" = 22)})
+  
+  Authorities5Input <- reactive({
+    switch(input$authorities5,
+           "0" = 0,
+           "1" = 1,
+           "2" = 2,
+           "3" = 3,
+           "4" = 4,
+           "5" = 5,
+           "6" = 6,
+           "7" = 7,
+           "8" = 8,
+           "9" = 9,
+           "10" = 10,
+           "11" = 11,
+           "12" = 12,
+           "13" = 13,
+           "14" = 14,
+           "15" = 15,
+           "16" = 16,
+           "17" = 17,
+           "18" = 18,
+           "19" = 19,
+           "20" = 20,
+           "21" = 21,
+           "22" = 22)})
+  
+  Authorities6Input <- reactive({
+    switch(input$authorities6,
+           "0" = 0,
+           "1" = 1,
+           "2" = 2,
+           "3" = 3,
+           "4" = 4,
+           "5" = 5,
+           "6" = 6,
+           "7" = 7,
+           "8" = 8,
+           "9" = 9,
+           "10" = 10,
+           "11" = 11,
+           "12" = 12,
+           "13" = 13,
+           "14" = 14,
+           "15" = 15,
+           "16" = 16,
+           "17" = 17,
+           "18" = 18,
+           "19" = 19,
+           "20" = 20,
+           "21" = 21,
+           "22" = 22)})
   
   output$topicmodels <- renderUI({  
     getPage<-function() {
@@ -216,6 +368,130 @@ server <- function(input, output) {
     gvis_table <- gvis_table[order(-gvis_table[,6], gvis_table[,2]),] 
     gvisTable(gvis_table, options=list(page='enable'))
   })
+  
+  output$view_authority <- renderGvis({
+    authority1 <- Authorities1Input()
+    vaxisinput <- "[{format:'#,###', viewWindowMode:'explicit', viewWindow:{min:0, max:12}}]"
+    if (authority1 != 0) {
+      if (input$dataset == "CartoonData") {
+        themen <- 17 + authority1
+        eqset <- CartoonData
+        authority2 <- Authorities2Input()
+        if (authority2 == 0) {
+        test <- eqset[c(1,9,themen)]
+        eqset.df <- aggregate(list(test[,3]), list(month = test$Month), sum)
+        colnames(eqset.df) <- colnames(eqset[c(9,themen)])
+        visualisation <- gvisColumnChart(eqset.df, xvar="Month", yvar=c(colnames(eqset.df)[2]), 
+                                             options=list(
+                                               isStacked=FALSE, 
+                                               title="",
+                                               width=1200, height=800, 
+                                               vAxes=vaxisinput, 
+                                               hAxis="{title:''}", 
+                                               legend="{position:'top'}"))
+        }
+        if (authority2 != 0) {
+          themen2 <- 17 + authority2
+          authority3 <- Authorities3Input()
+          if (authority3 == 0) {
+            test <- eqset[c(1,9,themen,themen2)]
+            eqset.df <- aggregate(list(test[,3],test[,4]), list(month = test$Month), sum)
+            colnames(eqset.df) <- colnames(eqset[c(9,themen,themen2)])
+            visualisation <- gvisColumnChart(eqset.df, xvar="Month", yvar=c(colnames(eqset.df)[2],
+                                                                                 colnames(eqset.df)[3]), 
+                                                  options=list(
+                                                    isStacked=FALSE, 
+                                                    title="",
+                                                    width=1200, height=800, 
+                                                    vAxes=vaxisinput, 
+                                                    hAxis="{title:''}", 
+                                                    legend="{position:'top'}"))
+          }
+          if (authority3 != 0) {
+            themen3 <- 17 + authority3
+            authority4 <- Authorities4Input()
+            if (authority4 == 0) {
+              test <- eqset[c(1,9,themen,themen2,themen3)]
+              eqset.df <- aggregate(list(test[,3],test[,4],test[,5]), list(month = test$Month), sum)
+              colnames(eqset.df) <- colnames(eqset[c(9,themen,themen2,themen3)])
+              visualisation <- gvisColumnChart(eqset.df, xvar="Month", yvar=c(colnames(eqset.df)[2],
+                                                                                   colnames(eqset.df)[3],
+                                                                                   colnames(eqset.df)[4]), 
+                                                    options=list(
+                                                      isStacked=FALSE, 
+                                                      title="",
+                                                      width=1200, height=800, 
+                                                      vAxes=vaxisinput, 
+                                                      hAxis="{title:''}", 
+                                                      legend="{position:'top'}"))
+            }
+            if (authority4 != 0) {
+              themen4 <- 17 + authority4
+              authority5 <- Authorities5Input()
+              if (authority5 == 0) {
+                test <- eqset[c(1,9,themen,themen2,themen3,themen4)]
+                eqset.df <- aggregate(list(test[,3],test[,4],test[,5],test[,6]), list(month = test$Month), sum)
+                colnames(eqset.df) <- colnames(eqset[c(9,themen,themen2,themen3,themen4)])
+                visualisation <- gvisColumnChart(eqset.df, xvar="Month", yvar=c(colnames(eqset.df)[2],
+                                                                                     colnames(eqset.df)[3],
+                                                                                     colnames(eqset.df)[4],
+                                                                                     colnames(eqset.df)[5]), 
+                                                      options=list(
+                                                        isStacked=FALSE, 
+                                                        title="",
+                                                        width=1200, height=800, 
+                                                        vAxes=vaxisinput, 
+                                                        hAxis="{title:''}", 
+                                                        legend="{position:'top'}"))
+              }
+              if (authority5 != 0) {
+                themen5 <- 17 + authority5
+                authority6 <- Authorities6Input()
+                if (authority6 == 0) {
+                  test <- eqset[c(1,9,themen,themen2,themen3,themen4,themen5)]
+                  eqset.df <- aggregate(list(test[,3],test[,4],test[,5],test[,6],test[,7]), list(month = test$Month), sum)
+                  colnames(eqset.df) <- colnames(eqset[c(9,themen,themen2,themen3,themen4,themen5)])
+                  visualisation <- gvisColumnChart(eqset.df, xvar="Month", yvar=c(colnames(eqset.df)[2],
+                                                                                       colnames(eqset.df)[3],
+                                                                                       colnames(eqset.df)[4],
+                                                                                       colnames(eqset.df)[5],
+                                                                                       colnames(eqset.df)[6]), 
+                                                        options=list(
+                                                          isStacked=FALSE, 
+                                                          title="",
+                                                          width=1200, height=800, 
+                                                          vAxes=vaxisinput, 
+                                                          hAxis="{title:''}", 
+                                                          legend="{position:'top'}"))
+                }
+                if (authority6 != 0) {
+                  themen6 <- 17 + authority6
+                  test <- eqset[c(1,9,themen,themen2,themen3,themen4,themen5,themen6)]
+                  eqset.df <- aggregate(list(test[,3],test[,4],test[,5],test[,6],test[,7],test[,8]), list(month = test$Month), sum)
+                  colnames(eqset.df) <- colnames(eqset[c(9,themen,themen2,themen3,themen4,themen5,themen6)])
+                  visualisation <- gvisColumnChart(eqset.df, xvar="Month", yvar=c(colnames(eqset.df)[2],
+                                                                                       colnames(eqset.df)[3],
+                                                                                       colnames(eqset.df)[4],
+                                                                                       colnames(eqset.df)[5],
+                                                                                       colnames(eqset.df)[6],
+                                                                                       colnames(eqset.df)[7]), 
+                                                        options=list(
+                                                          isStacked=FALSE, 
+                                                          title="",
+                                                          width=1200, height=800, 
+                                                          vAxes=vaxisinput, 
+                                                          hAxis="{title:''}", 
+                                                          legend="{position:'top'}"))
+                }
+              }
+            }
+          }
+      }
+      visualisation
+      # Currently only works with CartoonData.
+    }
+    }
+  })
 }
 
 ui <- fluidPage(
@@ -239,13 +515,46 @@ ui <- fluidPage(
       selectInput("topic", "Choose a topic:", 
                 choices = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17")),
       selectInput("topic2", "Choose a 2nd topic:", 
-                  choices = c("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17"))
+                  choices = c("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17")),
+      selectInput("authorities1", "Choose an Authority1:", 
+                  choices = c("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "22")),
+      selectInput("authorities2", "Choose an Authority2:", 
+                  choices = c("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "22")),
+      selectInput("authorities3", "Choose an Authority3:", 
+                  choices = c("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "22")),
+      selectInput("authorities4", "Choose an Authority4:", 
+                  choices = c("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "22")),
+      selectInput("authorities5", "Choose an Authority5:", 
+                  choices = c("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "22")),
+      selectInput("authorities6", "Choose an Authority6:", 
+                  choices = c("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "22"))
       ),
     mainPanel(
       tabsetPanel(
         tabPanel("Topics Sums/Means", htmlOutput("view")),
         tabPanel("Topic Model", htmlOutput("topicmodels")),
-        tabPanel("Tables", htmlOutput("view2")))
+        tabPanel("Tables", htmlOutput("view2")),
+        tabPanel("Authorities", htmlOutput("view_authority"))
+        )
       )))
 
 shinyApp(ui = ui, server = server)
+
+
+######
+eqHubbard  <- CartoonData[grep("Hubbard", as.character(eqset[,"Cartoonists"]), , fixed=TRUE),]
+
+themen <- 39 + topic1 + 10
+test <- eqNisbet[c(1,9,themen)]
+eqset.df <- aggregate(list(test[,3]), list(month = test$Month), sum)
+colnames(eqset.df) <- colnames(eqset[c(9,themen)])
+visualisation <-gvisSteppedAreaChart(eqset.df, xvar="Month", yvar=c(colnames(eqset.df)[2]),
+options=list(
+isStacked=FALSE,
+title="",
+width=600, height=600,
+vAxes=vaxisinput,
+hAxis="{title:''}",
+legend="{position:'top'}"))
+plot(visualisation)
+

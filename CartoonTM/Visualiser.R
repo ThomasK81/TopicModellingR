@@ -20,6 +20,7 @@ library(d3heatmap)
 library(ngram)
 library(reshape2)
 library(rjson)
+library(googleVis)
 
 ## User settings:
 K <- 17
@@ -226,3 +227,22 @@ TopicsCartoons <- gvisSteppedAreaChart(TopicsCartoons.df,
                                      hAxis="{title:''}", 
                                      legend="{position:'top'}"))
 plot(TopicsCartoons)
+
+### Subject headings
+
+test <- CartoonData[c(1,7,10,14,8,9,21,20,19,18,17)]
+eqset.df <- aggregate(list(test[,7], test[,8], test[,9], test[,10], test[,11]), list(month = test$Month), sum)
+col.names <- colnames(test)[6:11]
+col.names[3] <- "Economics" 
+col.names[4] <- "Psychological_aspects" 
+colnames(eqset.df) <- col.names
+vaxisinput <- "[{viewWindowMode:'explicit', viewWindow:{min:0, max:24}}]"
+visualisation <-gvisColumnChart(eqset.df, xvar="Month", yvar=c(colnames(eqset.df)[2:6]), 
+                                     options=list( 
+                                       title="",
+                                       width=1200, height=600,
+                                       bar="{groupWidth:'100%'}",
+                                       vAxes=vaxisinput, 
+                                       hAxis="{title:''}", 
+                                       legend="{position:'top'}"))
+plot(visualisation)
