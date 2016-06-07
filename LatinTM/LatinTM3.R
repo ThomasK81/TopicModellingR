@@ -1,6 +1,7 @@
 ## setwd, modify according to your needs
 
-setwd("~/OneDrive/TopicModellingR/LatinTM")
+# setwd("~/OneDrive/TopicModellingR/LatinTM")
+setwd("~/OneDrive/GithubProjects/TopicModellingR/LatinTM")
 
 ## libraries needed
 
