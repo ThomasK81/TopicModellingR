@@ -1,6 +1,7 @@
 ## setwd, modify according to your needs
 
-setwd("~/OneDrive/TopicModellingR/PetroniusTM")
+# setwd("~/OneDrive/TopicModellingR/PetroniusTM")
+setwd("~/OneDrive/GithubProjects/TopicModellingR/PetroniusTM")
 
 ## libraries needed
 
@@ -52,6 +53,10 @@ enableJIT(3)
 ### Functions:
 
 ### building test matrix to compare a sentence with all other sentences in the corpus
+
+cleanXML <- function(x) {
+  return(gsub("<.*?>", "", x))
+}
 
 build_test <- function(x){
   test_cases <- output_names [! output_names %in% x]
@@ -184,7 +189,7 @@ paragraphs <- c()
 paragraphs_identifier <- c()
 paragraph_numbers <- function(x) {
   id_base <- base_corpus[which(base_corpus[,3] == x),1]
-  sen_paragraphs <- unlist(strsplit(x, '<p\\Wn="\\d">'))
+  sen_paragraphs <- unlist(strsplit(x, '<p\\Wn="\\d{1,2}">'))
   sen_paragraphs <- sen_paragraphs[sen_paragraphs != ""]
   id_numbers <- 1:length(sen_paragraphs)
   id_numbers <- as.character(id_numbers)
@@ -202,12 +207,14 @@ new_corpus[,2] <- gsub('<milestone unit="quote_open"/><l>', '<l><milestone unit=
 
 lines <- c()
 lines_identifier <- c()
-line_numbers <- function(x) {
+for (x in new_corpus[,2]) {
   lineposition <- which(new_corpus[,2] == x)
   id_base <- new_corpus[lineposition,1]  
   if(grepl('<l>', x, fixed=TRUE)==TRUE) {
     sen_paragraphs <- unlist(strsplit(x, '<l>'))
-    sen_paragraphs <- sen_paragraphs[sen_paragraphs != ""]
+    if(sen_paragraphs[1] == "") {
+      sen_paragraphs <- sen_paragraphs[sen_paragraphs != ""]
+    }
     sen_paragraphs <- gsub("<\\/l>", "", sen_paragraphs)
     verse_paragraph <- length(grep('<l>', unlist(strsplit(x, "[[:space:]]+")), fixed=TRUE))
     if(verse_paragraph < length(sen_paragraphs)){
@@ -227,6 +234,7 @@ line_numbers <- function(x) {
         start <- as.integer(tail(unlist(strsplit(preceding, ".", fixed=TRUE)), n = 1))
         start <- start
         end <- start + length(sen_paragraphs)
+        start <- start + 1
         id_numbers <- start:end
         id_numbers <- as.character(id_numbers)
         sen_identifier <- paste(id_base, ".", id_numbers, sep = "")
@@ -238,15 +246,25 @@ line_numbers <- function(x) {
     sen_identifier <- id_base
     sen_paragraphs <- x
   }
-  lines_identifier <<- append(lines_identifier, sen_identifier)
-  lines <<- append(lines, sen_paragraphs)
+  length_li <- length(lines_identifier)
+  for (i in sen_identifier) {
+    position_place <- which(sen_identifier == i) + length_li
+    lines_identifier[position_place] <- i
+  }
+  length_li <- length(lines)
+  for (i in sen_paragraphs) {
+    position_place <- which(sen_paragraphs == i) + length_li
+    lines[position_place] <- i
+  }
 }
-temp <- lapply(new_corpus[,2], line_numbers)
 
-new_corpus2 <- data.frame(lines_identifier, lines)
+CorpusLines <- data.frame(lines_identifier, lines)
+CorpusParagraphs <- new_corpus
+chapters_with_poems <- base_corpus[which(grepl("<l>", base_corpus[,3], fixed = TRUE) == TRUE),]
+chapters_without_poems <- base_corpus[which(grepl("<l>", base_corpus[,3], fixed = TRUE) == FALSE),]
 
-output_names <- paragraphs_identifier)
-research_corpus <- paragraphs)
+output_names <- lines_identifier
+research_corpus <- lines
 
 research_corpus <- gsub("^[[:space:]]+", "", research_corpus) # remove whitespace at beginning of documents
 research_corpus <- gsub("[[:space:]]+$", "", research_corpus) # remove whitespace at end of documents
@@ -258,13 +276,35 @@ output_names <- gsub("[[:space:]]+$", "", output_names) # remove whitespace at e
 output_names <- gsub("[[:space:]]+", " ", output_names) # remove multiple whitespace
 output_names <- trimws(output_names)
 
-chapters_with_poems <- base_corpus[which(grepl("<l>", base_corpus[,3], fixed = TRUE) == TRUE),]
-chapters_without_poems <- base_corpus[which(grepl("<l>", base_corpus[,3], fixed = TRUE) == FALSE),]
-
-CTStext <- unname(unlist(sapply(output_names, CTSpassages)))
-CTSidentifiers <- unname(unlist(sapply(output_names, CTSids)))
+CTStext <- unlist(lapply(as.character(CorpusLines[,2]), cleanXML))
+CTSidentifiers <-as.character(output_names)
 
 CTScorpus <- data.frame(CTSidentifiers, CTStext)
+
+
+### Produce Epidoc CTS compliant XML from a table
+
+## text-metadata
+language_metadata = "lat"
+identifier = "urn:cts:phi0972.phi001.koentges-lat1"
+subtype1 = "chapter"
+subtype2 = "paragraph"
+subtype3 = "line"
+
+EpidocCTSxml <- xmlTree("TEI")
+EpidocCTSxml$addTag("text", attrs = c(xmllang = language_metadata), close=FALSE)
+EpidocCTSxml$addTag("body", close=FALSE)
+EpidocCTSxml$addTag("div", attrs = list(type = "edition", xmllang = language_metadata, subtype = subtype1), close=FALSE)
+for (i in 1:nrow(CTScorpus)) {
+  
+  EpidocCTSxml$addTag("div", attrs = list(n = CTScorpus[i,1], subtype = subtype1), CTScorpus[i,2])
+}
+EpidocCTSxml$closeTag()
+EpidocCTSxml$closeTag()
+EpidocCTSxml$closeTag()
+
+# view the result
+cat(saveXML(EpidocCTSxml))
 
 # base_corpus <- read.table("sanai.csv", sep="\t", header=FALSE)
 
