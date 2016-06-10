@@ -279,7 +279,7 @@ output_names <- trimws(output_names)
 CTStext <- unlist(lapply(as.character(CorpusLines[,2]), cleanXML))
 CTSidentifiers <-as.character(output_names)
 
-CTScorpus <- data.frame(CTSidentifiers, CTStext)
+CTScorpus <- data.frame(CTSidentifiers, CTStext, stringsAsFactors=FALSE)
 
 
 ### Produce Epidoc CTS compliant XML from a table
@@ -291,20 +291,171 @@ subtype1 = "chapter"
 subtype2 = "paragraph"
 subtype3 = "line"
 
-EpidocCTSxml <- xmlTree("TEI")
-EpidocCTSxml$addTag("text", attrs = c(xmllang = language_metadata), close=FALSE)
+EpidocCTSxml <- xmlTree("TEI", namespaces = c(xmlns = "http://www.tei-c.org/ns/1.0"))
+EpidocCTSxml$addTag("teiHeader", attrs = c(type = 'text'), close=FALSE)
+EpidocCTSxml$closeTag()
+EpidocCTSxml$addTag("text", attrs = c("xml:lang" = language_metadata), close=FALSE)
 EpidocCTSxml$addTag("body", close=FALSE)
-EpidocCTSxml$addTag("div", attrs = list(type = "edition", xmllang = language_metadata, subtype = subtype1), close=FALSE)
+EpidocCTSxml$addTag("div", attrs = list(type = "edition", "xml:lang" = language_metadata, subtype = subtype1, n = identifier), close=FALSE)
 for (i in 1:nrow(CTScorpus)) {
-  
-  EpidocCTSxml$addTag("div", attrs = list(n = CTScorpus[i,1], subtype = subtype1), CTScorpus[i,2])
+  base_number <- unlist(strsplit(CTScorpus[i,1], ":", fixed = TRUE))[length(unlist(strsplit(CTScorpus[i,1], ":", fixed = TRUE)))]
+  if (i == 1) {
+    elements <- unlist(strsplit(base_number, ".", fixed = TRUE))
+    st1 <- elements[1]
+    if (length(elements) == 1) {
+      EpidocCTSxml$addTag("div", attrs = list(n = st1, subtype = subtype1), CTScorpus[i,2], close = FALSE)
+    }
+    else if (length(elements) == 2) {
+      st2 <- elements[2]
+      EpidocCTSxml$addTag("div", attrs = list(n = st1, subtype = subtype1), close = FALSE)
+      EpidocCTSxml$addTag("div", attrs = list(n = st2, subtype = subtype2), CTScorpus[i,2], close = FALSE)
+    }
+    else if (length(elements) == 3) {
+      st2 <- elements[2]
+      st3 <- elements[3]
+      EpidocCTSxml$addTag("div", attrs = list(n = st1, subtype = subtype1), close = FALSE)
+      EpidocCTSxml$addTag("div", attrs = list(n = st2, subtype = subtype2), close = FALSE)
+      EpidocCTSxml$addTag("div", attrs = list(n = st3, subtype = subtype3), CTScorpus[i,2], close = FALSE)
+    }
+  }
+  else {
+    comparison <- elements
+    elements <- unlist(strsplit(base_number, ".", fixed = TRUE))
+    if (length(elements) == length(comparison)) {
+      if (comparison[1] < elements[1]) {
+        for (j in 1:length(comparison)) {
+          EpidocCTSxml$closeTag()
+          }
+        st1 <- elements[1]
+        if (length(elements) == 1) {
+          EpidocCTSxml$addTag("div", attrs = list(n = st1, subtype = subtype1), CTScorpus[i,2], close = FALSE)
+        }
+        else if (length(elements) == 2) {
+          st2 <- elements[2]
+          EpidocCTSxml$addTag("div", attrs = list(n = st1, subtype = subtype1), close = FALSE)
+          EpidocCTSxml$addTag("div", attrs = list(n = st2, subtype = subtype2), CTScorpus[i,2], close = FALSE)
+        }
+        else if (length(elements) == 3) {
+          st2 <- elements[2]
+          st3 <- elements[3]
+          EpidocCTSxml$addTag("div", attrs = list(n = st1, subtype = subtype1), close = FALSE)
+          EpidocCTSxml$addTag("div", attrs = list(n = st2, subtype = subtype2), close = FALSE)
+          EpidocCTSxml$addTag("div", attrs = list(n = st3, subtype = subtype3), CTScorpus[i,2], close = FALSE)
+        }
+      }
+      else if (comparison[1] == elements[1]) {
+        if (length(elements) == 2) {
+          st2 <- elements[2]
+          EpidocCTSxml$closeTag()
+          EpidocCTSxml$addTag("div", attrs = list(n = st2, subtype = subtype2), CTScorpus[i,2], close = FALSE)
+        }
+        else if (length(elements) == 3) {
+          st2 <- elements[2]
+          st3 <- elements[3]
+          if (comparison[2] < elements[2]) {
+            EpidocCTSxml$closeTag()
+            EpidocCTSxml$closeTag()
+            EpidocCTSxml$addTag("div", attrs = list(n = st2, subtype = subtype2), close = FALSE)
+            EpidocCTSxml$addTag("div", attrs = list(n = st3, subtype = subtype3), CTScorpus[i,2], close = FALSE)
+          }
+          else {
+            EpidocCTSxml$closeTag()
+            EpidocCTSxml$addTag("div", attrs = list(n = st3, subtype = subtype3), CTScorpus[i,2], close = FALSE)
+          }
+        }
+      }
+    }
+    else if (length(elements) < length(comparison)) {
+      st1 <- elements[1]
+      if (length(elements) == 1) {
+        if (comparison[1] < elements[1]) {
+          for (j in 1:length(comparison)) {
+            EpidocCTSxml$closeTag()
+          }
+          EpidocCTSxml$addTag("div", attrs = list(n = st1, subtype = subtype1), CTScorpus[i,2], close = FALSE)
+        }
+        else if (comparison[1] == elements[1]) {
+          for (j in 1:length(comparison)) {
+            EpidocCTSxml$closeTag()
+          }
+          st1 <- paste(elements[1], "A", sep ="")
+          EpidocCTSxml$addTag("div", attrs = list(n = st1, subtype = subtype1), CTScorpus[i,2], close = FALSE)
+        }
+      }
+      if (length(elements) == 2) {
+        st2 <- elements[2]
+        if (comparison[1] == elements[1]) {
+          if (comparison[2] == elements[2]) {
+            EpidocCTSxml$closeTag()
+            EpidocCTSxml$closeTag()
+            st2 <- paste(elements[1], "A", sep ="")
+            EpidocCTSxml$addTag("div", attrs = list(n = st2, subtype = subtype2), CTScorpus[i,2], close = FALSE)
+          }
+          else {
+            EpidocCTSxml$closeTag()
+            EpidocCTSxml$closeTag()
+            EpidocCTSxml$addTag("div", attrs = list(n = st2, subtype = subtype2), CTScorpus[i,2], close = FALSE)
+          }
+        }
+        else {
+          for (j in 1:length(comparison)) {
+            EpidocCTSxml$closeTag()
+          }
+          EpidocCTSxml$addTag("div", attrs = list(n = st1, subtype = subtype1), close = FALSE)
+          EpidocCTSxml$addTag("div", attrs = list(n = st2, subtype = subtype2), CTScorpus[i,2], close = FALSE)
+        }
+      }
+    }
+    else if (length(elements) > length(comparison)) {
+      st1 <- elements[1]
+      st2 <- elements[2]
+      if (length(elements) == 2) {
+        if (comparison[1] == elements[1]) {
+          EpidocCTSxml$addTag("div", attrs = list(n = st2, subtype = subtype2), CTScorpus[i,2], close = FALSE)
+        }
+        else {
+          EpidocCTSxml$closeTag()
+          EpidocCTSxml$addTag("div", attrs = list(n = st1, subtype = subtype1), close = FALSE)
+          EpidocCTSxml$addTag("div", attrs = list(n = st2, subtype = subtype2), CTScorpus[i,2], close = FALSE)
+        }
+        }
+      else {
+        st3 <- elements[3]
+        if (comparison[1] == elements[1]) {
+          if (comparison[2] == elements[2]) {
+            EpidocCTSxml$addTag("div", attrs = list(n = st3, subtype = subtype3), CTScorpus[i,2], close = FALSE)
+          }
+          else {
+            EpidocCTSxml$closeTag()
+            EpidocCTSxml$addTag("div", attrs = list(n = st2, subtype = subtype2), close = FALSE)
+            EpidocCTSxml$addTag("div", attrs = list(n = st3, subtype = subtype3), CTScorpus[i,2], close = FALSE)
+          }
+        }
+        else {
+          for (j in 1:length(comparison)) {
+            EpidocCTSxml$closeTag()
+          }
+          EpidocCTSxml$addTag("div", attrs = list(n = st1, subtype = subtype1), close = FALSE)
+          EpidocCTSxml$addTag("div", attrs = list(n = st2, subtype = subtype2), close = FALSE)
+          EpidocCTSxml$addTag("div", attrs = list(n = st3, subtype = subtype3), CTScorpus[i,2], close = FALSE)
+        }
+      }
+    }
+  }
+}
+for (j in 1:length(comparison)) {
+  EpidocCTSxml$closeTag()
 }
 EpidocCTSxml$closeTag()
 EpidocCTSxml$closeTag()
 EpidocCTSxml$closeTag()
 
 # view the result
-cat(saveXML(EpidocCTSxml))
+folder_Structure <- unlist(strsplit(identifier, ":", fixed = TRUE))[length(unlist(strsplit(identifier, ":", fixed = TRUE)))]
+folder <- paste("data/", unlist(strsplit(folder_Structure, ".", fixed = TRUE))[1], "/", unlist(strsplit(folder_Structure, ".", fixed = TRUE))[2], sep = "")
+dir.create(folder)
+filename <- paste(folder, "/", folder_Structure, ".xml",sep = "") 
+saveXML(EpidocCTSxml, file = filename)
 
 # base_corpus <- read.table("sanai.csv", sep="\t", header=FALSE)
 
