@@ -542,19 +542,19 @@ shinyApp(ui = ui, server = server)
 
 
 ######
-eqHubbard  <- CartoonData[grep("Hubbard", as.character(eqset[,"Cartoonists"]), , fixed=TRUE),]
+# eqHubbard  <- CartoonData[grep("Hubbard", as.character(eqset[,"Cartoonists"]), , fixed=TRUE),]
 
-themen <- 39 + topic1 + 10
-test <- eqNisbet[c(1,9,themen)]
-eqset.df <- aggregate(list(test[,3]), list(month = test$Month), sum)
-colnames(eqset.df) <- colnames(eqset[c(9,themen)])
-visualisation <-gvisSteppedAreaChart(eqset.df, xvar="Month", yvar=c(colnames(eqset.df)[2]),
-options=list(
-isStacked=FALSE,
-title="",
-width=600, height=600,
-vAxes=vaxisinput,
-hAxis="{title:''}",
-legend="{position:'top'}"))
-plot(visualisation)
+# themen <- 39 + topic1 + 10
+# test <- eqNisbet[c(1,9,themen)]
+# eqset.df <- aggregate(list(test[,3]), list(month = test$Month), sum)
+# colnames(eqset.df) <- colnames(eqset[c(9,themen)])
+# visualisation <-gvisSteppedAreaChart(eqset.df, xvar="Month", yvar=c(colnames(eqset.df)[2]),
+# options=list(
+ #isStacked=FALSE,
+#title="",
+#width=600, height=600,
+#vAxes=vaxisinput,
+#hAxis="{title:''}",
+#legend="{position:'top'}"))
+# plot(visualisation)
 
